@@ -34,22 +34,24 @@ CREATE TABLE Gift_Shop_Item(
     Name_of_Item VARCHAR(30),
     Price_of_Item DECIMAL(10,2),
     Category VARCHAR(30),
-    Stock_Quantity INT CHECK (Stock_Quantity >= 0),
+    Stock_Quantity INT,
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
-    Updated_AT DATE
+    Updated_AT DATE,
+    CHECK (Stock_Quantity >= 0)
 );
 
 --@Block
 CREATE TABLE Food(
     Food_ID INT PRIMARY KEY NOT NULL,
     Food_Name VARCHAR(30),
-    Food_Price DECIMAL(4,2) NOT NULL CHECK (Food_Price >= 0),
+    Food_Price DECIMAL(4,2) NOT NULL,
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
-    Updated_AT DATE
+    Updated_AT DATE,
+    CHECK (Food_Price >= 0)
 );
 
 --@Block
