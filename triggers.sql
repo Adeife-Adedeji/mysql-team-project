@@ -14,7 +14,7 @@ BEGIN
          FROM Event 
          WHERE Event_ID = NEW.Event_ID)
     ) THEN
-        SIGNAL SQLSTATE '45000'
+        SIGNAL SQLSTATE '45'
         SET MESSAGE_TEXT = 'Event capacity exceeded';
     END IF;
 END;
@@ -33,7 +33,7 @@ BEGIN
               AND Date_Exited < NEW.Visit_Date
         )
     THEN
-        SIGNAL SQLSTATE '40000'
+        SIGNAL SQLSTATE '40'
         SET MESSAGE_TEXT = 'Membership has expired';
     END IF;
 END;
@@ -52,7 +52,7 @@ BEGIN
               (Start_Time < NEW.End_Time AND End_Time > NEW.Start_Time)
           )
     ) THEN
-        SIGNAL SQLSTATE '30000'
+        SIGNAL SQLSTATE '30'
         SET MESSAGE_TEXT = 'Employee has an overlapping shift';
     END IF;
 END;
@@ -67,7 +67,7 @@ BEGIN
         SELECT 1 FROM Exhibition_Artwork
         WHERE Artwork_ID = OLD.Artwork_ID
     ) THEN
-        SIGNAL SQLSTATE '55000'
+        SIGNAL SQLSTATE '55'
         SET MESSAGE_TEXT = 'Cannot delete artwork that is currently on display in an exhibition';
     END IF;
 END;
