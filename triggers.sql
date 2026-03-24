@@ -1,4 +1,3 @@
-
 -- checks to ensure that the number of registrations for an event does not exceed the maximum capacity of the event
 --@Block
 CREATE TRIGGER trigger_check_event_capacity
@@ -14,8 +13,24 @@ BEGIN
          FROM Event 
          WHERE Event_ID = NEW.Event_ID)
     ) THEN
-        SIGNAL SQLSTATE '45'
+        SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Event capacity exceeded';
+    END IF;
+END;
+
+-- trigger to check if artist has been added already
+--@Block
+CREATE TRIGGER trigger_check_artist_exists
+BEFORE INSERT ON Artist
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM Artist
+        WHERE Artist_Name = NEW.Artist_Name
+          AND Date_of_Birth = NEW.Date_of_Birth
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Artist already exists in the database';
     END IF;
 END;
 
@@ -33,7 +48,7 @@ BEGIN
               AND Date_Exited < NEW.Visit_Date
         )
     THEN
-        SIGNAL SQLSTATE '40'
+        SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Membership has expired';
     END IF;
 END;
@@ -52,7 +67,7 @@ BEGIN
               (Start_Time < NEW.End_Time AND End_Time > NEW.Start_Time)
           )
     ) THEN
-        SIGNAL SQLSTATE '30'
+        SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Employee has an overlapping shift';
     END IF;
 END;
@@ -67,7 +82,7 @@ BEGIN
         SELECT 1 FROM Exhibition_Artwork
         WHERE Artwork_ID = OLD.Artwork_ID
     ) THEN
-        SIGNAL SQLSTATE '55'
+        SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Cannot delete artwork that is currently on display in an exhibition';
     END IF;
 END;
