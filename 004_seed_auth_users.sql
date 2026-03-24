@@ -1,3 +1,4 @@
+USE museum_db;
 INSERT INTO
     Membership (
         Membership_ID,
