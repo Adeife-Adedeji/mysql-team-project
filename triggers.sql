@@ -17,7 +17,7 @@ BEGIN
         SET MESSAGE_TEXT = 'Event capacity exceeded';
     END IF;
 END;
-
+-- 
 -- trigger to check if artist has been added already
 --@Block
 CREATE TRIGGER trigger_check_artist_exists
@@ -103,5 +103,17 @@ BEGIN
         SET NEW.Email = (
             SELECT Email FROM Membership
             WHERE Membership_ID = NEW.Membership_ID);
+    END IF;
+END;
+
+--@Block
+-- prevent date of death from being before date of birth for artists
+CREATE TRIGGER trigger_check_artist_dates
+BEFORE INSERT ON Artist
+FOR EACH ROW
+BEGIN
+    IF NEW.Date_of_Death IS NOT NULL AND NEW.Date_of_Death < NEW.Date_of_Birth THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Date of death cannot be before date of birth';
     END IF;
 END;

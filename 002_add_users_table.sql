@@ -1,5 +1,3 @@
-CREATE DATABASE IF NOT EXISTS museum_db;
-USE museum_db;
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100),

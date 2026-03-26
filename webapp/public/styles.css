@@ -71,6 +71,21 @@ a {
   margin-top: 0;
 }
 
+.card h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.85rem;
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-bottom: 0.8rem;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -118,11 +133,16 @@ select {
 button {
   border: 0;
   border-radius: 999px;
-  padding: 0.7rem 1.1rem;
+  padding: 0.8rem 1.25rem;
   background: var(--accent);
   color: white;
   cursor: pointer;
   text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .button-secondary {
@@ -134,6 +154,75 @@ button {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.dashboard-card {
+  padding: 1.6rem;
+}
+
+.dashboard-intro,
+.dashboard-note {
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.dashboard-intro {
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-note {
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+}
+
+.dashboard-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.detail-item {
+  padding: 0.9rem 1rem;
+  background: rgba(239, 231, 217, 0.45);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.detail-item dt {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.detail-item dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dashboard-section {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  margin-top: 1.25rem;
+}
+
+.dashboard-actions {
+  gap: 0.9rem;
+}
+
+.dashboard-actions .button {
+  min-width: 180px;
+}
+
+.dashboard-footer {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
 }
 
 .link-button {
@@ -189,5 +278,14 @@ td {
 
   .container {
     padding: 1rem;
+  }
+
+  .dashboard-card {
+    padding: 1.2rem;
+  }
+
+  .dashboard-actions .button,
+  .dashboard-footer .button {
+    width: 100%;
   }
 }
