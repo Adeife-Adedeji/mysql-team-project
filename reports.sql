@@ -1,4 +1,5 @@
 -- reports artwork by artis, employees by department and ticket sales report
+--@block
 CREATE PROCEDURE ReportArtworkByArtist()
 BEGIN
     SELECT
@@ -14,12 +15,12 @@ BEGIN
     JOIN Artwork AS AW
         ON AR.Artist_ID = AW.Artist_ID
     ORDER BY AR.Artist_Name, AW.Title;
-END
-
+END;
+--@block
 CREATE PROCEDURE ReportEmployeeByDepartment()
 BEGIN
     SELECT
-        E.Employee_ID
+        E.Employee_ID,
         CONCAT(E.First_Name, ' ', E.Last_Name) AS Employee_Name,
         E.Employee_Role,
         E.Date_Hired,
@@ -34,8 +35,8 @@ BEGIN
     LEFT JOIN Employee AS S
         ON E.Supervisor_ID = S.Employee_ID
     ORDER BY D.Department_Name, E.Last_Name, E.First_Name;
-END
-
+END;
+--@block
 CREATE PROCEDURE ReportTicketSales()
 BEGIN
     SELECT
@@ -53,11 +54,11 @@ BEGIN
         TL.Price_per_ticket,
         TL.Total_sum_of_ticket,
         EX.Exhibition_ID,
-        EX.Exhibition_Name,
+        EX.Exhibition_Name
     FROM Ticket AS T
     Join ticket_line as TL
         ON T.Ticket_ID = TL.Ticket_ID
     LEFT JOIN Exhibition AS EX
         ON TL.Exhibition_ID = EX.Exhibition_ID
     ORDER BY T.Purchase_Date DESC, T.Ticket_ID;
-END
+END;
