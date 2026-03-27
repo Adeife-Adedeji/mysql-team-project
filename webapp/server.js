@@ -9,7 +9,7 @@ const { registerRoutes } = require("./routes");
 loadEnv(path.join(__dirname, ".env"));
 
 const app = express();
-const port = Number(process.env.PORT || 3000);
+const port = process.env.PORT || 3000;
 const pool = createPool(process.env);
 
 app.use(express.urlencoded({ extended: true }));
