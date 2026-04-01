@@ -101,6 +101,16 @@ function isMember(user) {
   return user && user.role === "user";
 }
 
+function allowRoles(roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.session.user.role)) {
+      setFlash(req, "Access denied.");
+      return res.redirect("/dashboard");
+    }
+    next();
+  };
+}
+
 module.exports = {
   asyncHandler,
   escapeHtml,
@@ -114,4 +124,5 @@ module.exports = {
   renderPage,
   requireLogin,
   setFlash,
+  allowRoles,
 };
