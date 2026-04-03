@@ -1,3 +1,8 @@
+const { registerEventRoutes } = require("./event");
+const { registerEventRegistrationRoutes } = require("./eventRegistration");
+const { registerScheduleRoutes } = require("./schedule");
+const { registerDepartmentRoutes } = require("./department");
+const { registerEmployeeRoutes } = require("./employee");
 const { registerAuthenticationRoutes } = require("./authentication");
 const { registerDashboardRoutes } = require("./dashboard");
 const { registerPurchaseTicketRoutes} = require("./purchaseTicket");
@@ -12,7 +17,11 @@ const { registerGiftShopRoutes } = require("./giftShop");
 const { registerCafeRoutes } = require("./cafe");
 
 
-function registerRoutes(app, { pool }) {
+function registerRoutes(app, { pool }) 
+{
+    registerEventRegistrationRoutes(app, { pool });
+    registerEventRoutes(app, { pool });
+    registerDepartmentRoutes(app, { pool });
     registerAuthenticationRoutes(app, { pool });
     registerDashboardRoutes(app, { pool });
     registerPurchaseTicketRoutes(app, { pool });
@@ -22,9 +31,11 @@ function registerRoutes(app, { pool }) {
     registerArtworkRoutes(app, { pool });
     registerMembershipRoutes(app, { pool });
     registerExhibitionRoutes(app, { pool });
+    registerEmployeeRoutes(app, { pool });
     registerAdmissionRoutes(app, { pool });
     registerGiftShopRoutes(app, { pool });
     registerCafeRoutes(app, { pool });
+    registerScheduleRoutes(app, { pool });
 }
 
 module.exports = { registerRoutes };

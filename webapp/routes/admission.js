@@ -141,7 +141,8 @@ function registerAdmissionRoutes(app, { pool }) {
       return res.redirect("/add-ticket");
     }
 
-    await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
+    await pool.query("DELETE FROM ticket_line WHERE Ticket_ID = ?", [idToDelete]);
+await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
     setFlash(req, "Ticket record deleted.");
     res.redirect("/add-ticket");
   }));

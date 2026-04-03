@@ -129,85 +129,13 @@ function registerMembershipRoutes(app, { pool }) {
       return res.redirect("/add-membership");
     }
 
-    await pool.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+    await pool.query("UPDATE Ticket SET Membership_ID = NULL WHERE Membership_ID = ?", [idToDelete]);
+await pool.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
     setFlash(req, "Membership successfully deleted!");
     res.redirect("/add-membership");
   }));
 
-  app.get("/add-exhibition", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
-    const [exhibitions] = await pool.query(
-      "SELECT Exhibition_ID, Exhibition_Name, Starting_Date, Ending_Date FROM Exhibition",
-    );
-
-    let editExhibition = null;
-    if (req.query.edit_id) {
-      const [rows] = await pool.query(
-        "SELECT * FROM Exhibition WHERE Exhibition_ID = ?",
-        [req.query.edit_id],
-      );
-      editExhibition = rows[0] || null;
-    }
-
-    const exhibitionRows = exhibitions.map((exhibition) => `
-      <tr>
-        <td>${exhibition.Exhibition_ID}</td>
-        <td>${escapeHtml(exhibition.Exhibition_Name)}</td>
-        <td>${formatDisplayDate(exhibition.Starting_Date)}</td>
-        <td>${formatDisplayDate(exhibition.Ending_Date)}</td>
-        <td class="actions">
-          <form method="get" action="/add-exhibition" class="inline-form">
-            <input type="hidden" name="edit_id" value="${exhibition.Exhibition_ID}">
-            <button class="link-button" type="submit">Edit</button>
-          </form>
-          <form method="post" action="/delete-exhibition" class="inline-form" onsubmit="return confirm('Delete this exhibition?');">
-            <input type="hidden" name="exhibition_id" value="${exhibition.Exhibition_ID}">
-            <button class="link-button danger" type="submit">Delete</button>
-          </form>
-        </td>
-      </tr>
-    `).join("");
-
-    res.send(renderPage({
-      title: "Manage Exhibitions",
-      user: req.session.user,
-      content: `
-      <section class="card narrow">
-        <h1>${editExhibition ? "Edit Exhibition" : "Add New Exhibition"}</h1>
-        ${renderFlash(req)}
-        <form method="post" action="/add-exhibition" class="form-grid">
-          ${editExhibition ? `<input type="hidden" name="exhibition_id" value="${editExhibition.Exhibition_ID}">` : ""}
-          <label>Exhibition Name
-            <input type="text" name="name" value="${editExhibition ? escapeHtml(editExhibition.Exhibition_Name) : ""}" required>
-          </label>
-          <label>Start Date
-            <input type="date" name="start_date" value="${editExhibition ? formatDateInput(editExhibition.Starting_Date) : ""}" required>
-          </label>
-          <label>End Date
-            <input type="date" name="end_date" value="${editExhibition ? formatDateInput(editExhibition.Ending_Date) : ""}" required>
-          </label>
-          <button class="button" type="submit">${editExhibition ? "Update Exhibition" : "Add Exhibition"}</button>
-        </form>
-      </section>
-      <section class="card narrow">
-        <h2>Current Exhibitions</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${exhibitionRows || '<tr><td colspan="5">No exhibitions found.</td></tr>'}
-          </tbody>
-        </table>
-      </section>
-    `,
-    }));
-  }));
+ 
 }
 
 module.exports = { registerMembershipRoutes };
