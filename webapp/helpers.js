@@ -86,7 +86,7 @@ function formatDisplayDate(value) {
 }
 
 function isStaff(user) {
-  return user && (user.role === "employee" || user.role === "supervisor");
+  return isEmployee(user) || isSupervisor(user)
 }
 
 function isSupervisor(user) {
@@ -94,11 +94,24 @@ function isSupervisor(user) {
 }
 
 function isEmployee(user) {
-  return user && user.role === "employee";
+  return user && ["employee", "admissions", "giftshop", "cafe", "janitor",
+    "security", "maintenance"].includes(user.role);
 }
 
 function isMember(user) {
   return user && user.role === "user";
+}
+
+function isAdmissions(user) {
+  return user && user.role === "admissions";
+}
+
+function isGiftShop(user) {
+  return user && user.role === "giftshop";
+}
+
+function isCafe(user) {
+  return user && user.role === "cafe";
 }
 
 function allowRoles(roles) {
@@ -125,4 +138,7 @@ module.exports = {
   requireLogin,
   setFlash,
   allowRoles,
+  isAdmissions,
+  isGiftShop,
+  isCafe
 };
