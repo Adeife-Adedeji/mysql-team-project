@@ -11,9 +11,135 @@ const {
 } = require("../helpers");
 
 function registerAdmissionRoutes(app, { pool }) {
-  app.get("/add-ticket", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const [exhibitions] = await pool.query(
+      "SELECT Exhibition_ID, Exhibition_Name, Starting_Date, Ending_Date FROM Exhibition WHERE Ending_Date >= CURDATE() ORDER BY Starting_Date"
+    );
+    const [recentTickets] = await pool.query(`
+      SELECT t.Ticket_ID, t.Purchase_Date, t.Visit_Date, t.Email, t.Phone_Number,
+             tl.Ticket_Type, tl.Quantity, tl.Price_per_ticket, e.Exhibition_Name
+      FROM Ticket t
+      JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID
+      LEFT JOIN Exhibition e ON tl.Exhibition_ID = e.Exhibition_ID
+      ORDER BY t.Ticket_ID DESC
+      LIMIT 30
+    `);
+
+    const ticketRows = recentTickets.map((row) => `
+      <tr>
+        <td>#${row.Ticket_ID}</td>
+        <td>${escapeHtml(row.Ticket_Type)}</td>
+        <td>${row.Quantity}</td>
+        <td>$${Number(row.Price_per_ticket).toFixed(2)}</td>
+        <td>${escapeHtml(row.Exhibition_Name || "General Admission")}</td>
+        <td>${formatDisplayDate(row.Visit_Date)}</td>
+        <td>${escapeHtml(row.Email || row.Phone_Number || "—")}</td>
+      </tr>
+    `).join("");
+
+    res.send(renderPage({
+      title: "Sell Admission Tickets",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <p class="eyebrow">Admissions Desk</p>
+        <h1>Sell Admission Tickets</h1>
+        ${renderFlash(req)}
+        <form method="post" action="/sell-ticket" class="form-grid">
+          <label>Visit Date
+            <input type="date" name="visit_date" required>
+          </label>
+          <label>Ticket Type
+            <select name="ticket_type" required>
+              <option value="">— Select —</option>
+              <option value="Adult">Adult</option>
+              <option value="Child">Child (under 12)</option>
+              <option value="Senior">Senior (65+)</option>
+              <option value="Student">Student (with ID)</option>
+              <option value="Member">Member</option>
+            </select>
+          </label>
+          <label>Quantity
+            <input type="number" name="quantity" min="1" value="1" required>
+          </label>
+          <label>Price per Ticket ($)
+            <input type="number" step="0.01" min="0" name="price" placeholder="e.g. 20.00" required>
+          </label>
+          <label>Exhibition
+            <select name="exhibition_id">
+              <option value="">General Admission</option>
+              ${exhibitions.map((ex) => `<option value="${ex.Exhibition_ID}">${escapeHtml(ex.Exhibition_Name)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Visitor Email (optional)
+            <input type="email" name="email" placeholder="visitor@email.com">
+          </label>
+          <label>Visitor Phone (optional)
+            <input type="tel" name="phone" placeholder="e.g. 7135550100">
+          </label>
+          <button class="button" type="submit">Process Sale</button>
+        </form>
+      </section>
+      <section class="card narrow">
+        <h2>Recent Ticket Sales</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Ticket #</th>
+              <th>Type</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Exhibition</th>
+              <th>Visit Date</th>
+              <th>Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ticketRows || '<tr><td colspan="7">No recent sales.</td></tr>'}
+          </tbody>
+        </table>
+      </section>
+    `,
+    }));
+  }));
+
+  app.post("/sell-ticket", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const { visit_date: visitDate, ticket_type: ticketType, quantity, price, exhibition_id: exhibitionId, email, phone } = req.body;
+
+    if (!visitDate || !ticketType || !quantity || !price) {
+      setFlash(req, "Please fill in all required fields.");
+      return res.redirect("/sell-ticket");
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.query(
+        `INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number)
+         VALUES (?, CURDATE(), ?, ?, ?)`,
+        ["Walk-in", visitDate, email || null, phone || null]
+      );
+      const newTicketId = result.insertId;
+      await connection.query(
+        `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
+         VALUES (?, ?, ?, ?, ?)`,
+        [newTicketId, ticketType, quantity, price, exhibitionId || null]
+      );
+      await connection.commit();
+      setFlash(req, `Sale recorded — Ticket #${newTicketId} issued.`);
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+    res.redirect("/sell-ticket");
+  }));
+  
+  app.get("/add-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const [tickets] = await pool.query(
-      "SELECT Ticket_ID, Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number FROM Ticket",
+      "SELECT Ticket_ID, Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number FROM Ticket ORDER BY Ticket_ID DESC"
     );
 
     let editTicket = null;
@@ -47,11 +173,11 @@ function registerAdmissionRoutes(app, { pool }) {
     `).join("");
 
     res.send(renderPage({
-      title: "Add Ticket",
+      title: "Ticket Records",
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editTicket ? "Edit Ticket" : "Add Ticket"}</h1>
+        <h1>${editTicket ? "Edit Ticket Record" : "Ticket Records"}</h1>
         ${renderFlash(req)}
         <form id="ticket-form" method="post" action="/add-ticket" class="form-grid">
           ${editTicket ? `<input type="hidden" name="ticket_id" value="${editTicket.Ticket_ID}">` : ""}
@@ -70,35 +196,33 @@ function registerAdmissionRoutes(app, { pool }) {
           <label>Email
             <input type="email" name="email" value="${editTicket ? escapeHtml(editTicket.Email || "") : ""}">
           </label>
+          ${editTicket ? `<button class="button" type="submit" form="ticket-form">Update Ticket</button>` : ""}
         </form>
-        <div class="button-row form-actions">
-          <button class="button" type="submit" form="ticket-form">${editTicket ? "Update Ticket" : "Add Ticket"}</button>
-        </div>
       </section>
       <section class="card narrow">
-        <h2>Recent Tickets</h2>
+        <h2>All Ticket Records</h2>
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Purchase</th>
-              <th>Visit</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${ticketRows || '<tr><td colspan="7">No tickets found.</td></tr>'}
-          </tbody>
-        </table>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Purchased</th>
+                <th>Visit</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ticketRows || '<tr><td colspan="7">No tickets found.</td></tr>'}
+            </tbody>
+          </table>
       </section>
     `,
     }));
   }));
 
-  app.post("/add-ticket", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const ticketId = req.body.ticket_id || null;
     const {
       type,
@@ -133,7 +257,7 @@ function registerAdmissionRoutes(app, { pool }) {
     res.redirect("/add-ticket");
   }));
 
-  app.post("/delete-ticket", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.ticket_id;
 
     if (!idToDelete) {
@@ -142,27 +266,28 @@ function registerAdmissionRoutes(app, { pool }) {
     }
 
     await pool.query("DELETE FROM ticket_line WHERE Ticket_ID = ?", [idToDelete]);
-await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
+    await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
     setFlash(req, "Ticket record deleted.");
     res.redirect("/add-ticket");
   }));
 
-  app.get("/add-ticket-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
-    const [tickets] = await pool.query("SELECT Ticket_ID FROM Ticket");
+  app.get("/add-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const [tickets] = await pool.query("SELECT Ticket_ID FROM Ticket ORDER BY Ticket_ID DESC");
     const [exhibitions] = await pool.query("SELECT Exhibition_ID, Exhibition_Name FROM Exhibition");
     const [lines] = await pool.query(`
       SELECT tl.Ticket_ID, tl.Ticket_Type, tl.Quantity, tl.Price_per_ticket, e.Exhibition_Name
       FROM ticket_line tl
       LEFT JOIN Exhibition e ON tl.Exhibition_ID = e.Exhibition_ID
+      ORDER BY tl.Ticket_ID DESC
     `);
     let editLine = null;
 
     if (req.query.edit_ticket && req.query.edit_type) {
-    const [rows] = await pool.query(
-      "SELECT * FROM ticket_line WHERE Ticket_ID = ? AND Ticket_Type = ?",
-      [req.query.edit_ticket, req.query.edit_type],
-    );
-    editLine = rows[0] || null;
+      const [rows] = await pool.query(
+        "SELECT * FROM ticket_line WHERE Ticket_ID = ? AND Ticket_Type = ?",
+        [req.query.edit_ticket, req.query.edit_type],
+      );
+      editLine = rows[0] || null;
     }
 
     const lineRows = lines.map((line) => `
@@ -173,7 +298,7 @@ await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
         <td>$${Number(line.Price_per_ticket).toFixed(2)}</td>
         <td>${escapeHtml(line.Exhibition_Name || "General")}</td>
         <td class="actions">
-            <form method="get" action="/add-ticket-line" class="inline-form">
+          <form method="get" action="/add-ticket-line" class="inline-form">
             <input type="hidden" name="edit_ticket" value="${line.Ticket_ID}">
             <input type="hidden" name="edit_type" value="${line.Ticket_Type}">
             <button class="link-button" type="submit">Edit</button>
@@ -188,19 +313,19 @@ await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
     `).join("");
 
     res.send(renderPage({
-      title: "Add Ticket Line",
+      title: "Ticket Line Items",
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>Add Ticket Line</h1>
+        <h1>Ticket Line Items</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-ticket-line" class="form-grid">
-        ${editLine ? `
-          <input type="hidden" name="original_type" value="${editLine.Ticket_Type}">
-        ` : ""}
+          ${editLine ? 
+            `<input type="hidden" name="original_type" value="${editLine.Ticket_Type}">`
+            : ""}
           <label>Ticket
             <select name="ticket_id">
-              ${tickets.map((ticket) => `<option value="${ticket.Ticket_ID}">Ticket #${ticket.Ticket_ID}</option>`).join("")}
+              ${tickets.map((t) => `<option value="${t.Ticket_ID}" ${editLine && editLine.Ticket_ID === t.Ticket_ID ? "selected" : ""}>#${t.Ticket_ID}</option>`).join("")}
             </select>
           </label>
           <label>Ticket Type
@@ -217,15 +342,15 @@ await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
           </label>
           <label>Exhibition
             <select name="exhibition_id">
-              <option value="">None</option>
-              ${exhibitions.map((exhibition) => `<option value="${exhibition.Exhibition_ID}">${escapeHtml(exhibition.Exhibition_Name)}</option>`).join("")}
+              <option value="">General Admission</option>
+              ${exhibitions.map((ex) => `<option value="${ex.Exhibition_ID}" ${editLine && editLine.Exhibition_ID === ex.Exhibition_ID ? "selected" : ""}>${escapeHtml(ex.Exhibition_Name)}</option>`).join("")}
             </select>
           </label>
-          <button class="button" type="submit">Add Ticket Line</button>
+          <button class="button" type="submit">${editLine ? "Update Line" : "Add Line"}</button>
         </form>
       </section>
       <section class="card narrow">
-        <h2>Existing Ticket Lines</h2>
+        <h2>Existing Line Items</h2>
         <table>
           <thead>
             <tr>
@@ -246,7 +371,7 @@ await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
     }));
   }));
 
-  app.post("/add-ticket-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const {
       ticket_id: ticketId,
       ticket_type: ticketType,
@@ -265,24 +390,23 @@ await pool.query("DELETE FROM Ticket WHERE Ticket_ID = ?", [idToDelete]);
         `UPDATE ticket_line
         SET Quantity = ?, Price_per_ticket = ?, Exhibition_ID = ?
         WHERE Ticket_ID = ? AND Ticket_Type = ?`,
-      [quantity, price, exhibitionId || null, ticketId, original_type],
-    );
-    setFlash(req, "Ticket line updated.");
+        [quantity, price, exhibitionId || null, ticketId, original_type],
+      );
+      setFlash(req, "Ticket line updated.");
     } else {
       await pool.query(
-      `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
-       VALUES (?, ?, ?, ?, ?)`,
-      [ticketId, ticketType, quantity, price, exhibitionId || null],
-    );
+        `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
+        VALUES (?, ?, ?, ?, ?)`,
+        [ticketId, ticketType, quantity, price, exhibitionId || null],
+      );
 
-    setFlash(req, "Ticket line added.");
-  }
+      setFlash(req, "Ticket line added.");
+    }
 
-  res.redirect("/add-ticket-line");
-}));
+    res.redirect("/add-ticket-line");
+  }));
 
-
-  app.post("/delete-ticket-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const { ticket_id: ticketId, ticket_type: ticketType } = req.body;
 
     await pool.query(
