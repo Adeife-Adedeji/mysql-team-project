@@ -11,9 +11,9 @@ const {
 } = require("../helpers");
 
 function registerMembershipRoutes(app, { pool }) {
-  app.get("/add-membership", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-membership", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [members] = await pool.query(
-      "SELECT Membership_ID, First_Name, Last_Name, Email, Phone_Number, Date_Joined FROM Membership",
+      "SELECT Membership_ID, First_Name, Last_Name, Email, Phone_Number, Date_Joined FROM Membership ORDER BY Membership_ID DESC"
     );
 
     let editMember = null;
@@ -31,25 +31,28 @@ function registerMembershipRoutes(app, { pool }) {
         <td>${escapeHtml(member.First_Name)} ${escapeHtml(member.Last_Name)}</td>
         <td>${escapeHtml(member.Email || "N/A")}</td>
         <td>${escapeHtml(member.Phone_Number || "N/A")}</td>
+        <td>${formatDisplayDate(member.Date_Joined)}</td>
         <td class="actions">
           <form method="get" action="/add-membership" class="inline-form">
             <input type="hidden" name="edit_id" value="${member.Membership_ID}">
             <button class="link-button" type="submit">Edit</button>
           </form>
-          <form method="post" action="/delete-membership" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this member?');">
+          <form method="post" action="/delete-membership" class="inline-form" onsubmit="return confirm('Cancel this membership?');">
             <input type="hidden" name="membership_id" value="${member.Membership_ID}">
-            <button class="link-button danger" type="submit">Delete</button>
+            <button class="link-button danger" type="submit">Cancel Membership</button>
           </form>
         </td>
       </tr>
     `).join("");
 
     res.send(renderPage({
-      title: "Manage Memberships",
+      title: "Visitor Memberships",
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editMember ? "Edit Membership" : "Add Membership"}</h1>
+        <p class="eyebrow">Admissions Desk</p>
+        <h1>${editMember ? "Edit Membership" : "Visitor Memberships"}</h1>
+        <p>Use to signup visitors for museum membership.</p>
         ${renderFlash(req)}
         <form method="post" action="/add-membership" class="form-grid">
           ${editMember ? `<input type="hidden" name="membership_id" value="${editMember.Membership_ID}">` : ""}
@@ -59,7 +62,7 @@ function registerMembershipRoutes(app, { pool }) {
           <label>Last Name
             <input type="text" name="last_name" value="${editMember ? escapeHtml(editMember.Last_Name) : ""}" required>
           </label>
-          <label>Email
+          <label>Visitor Email
             <input type="email" name="email" value="${editMember ? escapeHtml(editMember.Email || "") : ""}">
           </label>
           <label>Phone
@@ -69,6 +72,7 @@ function registerMembershipRoutes(app, { pool }) {
             <input type="date" name="date_joined" value="${editMember ? formatDateInput(editMember.Date_Joined) : ""}">
           </label>
           <button class="button" type="submit">${editMember ? "Update Membership" : "Add Membership"}</button>
+          ${editMember ? `<a class="button button-secondary" href="/add-membership">Cancel Edit</a>` : ""}
         </form>
       </section>
       <section class="card narrow">
@@ -80,11 +84,12 @@ function registerMembershipRoutes(app, { pool }) {
               <th>Name</th>
               <th>Email</th>
               <th>Phone</th>
+              <th>Joined</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${memberRows || '<tr><td colspan="5">No members found.</td></tr>'}
+            ${memberRows || '<tr><td colspan="6">No members found.</td></tr>'}
           </tbody>
         </table>
       </section>
@@ -92,7 +97,7 @@ function registerMembershipRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-membership", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-membership", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const id = req.body.membership_id || null;
     const { first_name: firstName, last_name: lastName, email, phone, date_joined: dateJoined } = req.body;
 
@@ -103,16 +108,14 @@ function registerMembershipRoutes(app, { pool }) {
 
     if (id) {
       await pool.query(
-        `UPDATE Membership
-         SET First_Name = ?, Last_Name = ?, Email = ?, Phone_Number = ?, Date_Joined = ?
-         WHERE Membership_ID = ?`,
+        `UPDATE Membership SET First_Name = ?, Last_Name = ?, Email = ?, Phone_Number = ?, Date_Joined = ? WHERE Membership_ID = ?`,
         [firstName, lastName, email || null, phone || null, dateJoined || null, id],
       );
       setFlash(req, "Membership updated successfully.");
     } else {
       await pool.query(
         `INSERT INTO Membership (First_Name, Last_Name, Email, Phone_Number, Date_Joined)
-         VALUES (?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?)`,
         [firstName, lastName, email || null, phone || null, dateJoined || null],
       );
       setFlash(req, "Membership added.");
@@ -121,7 +124,7 @@ function registerMembershipRoutes(app, { pool }) {
     res.redirect("/add-membership");
   }));
 
-  app.post("/delete-membership", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-membership", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.membership_id;
 
     if (!idToDelete) {
@@ -130,12 +133,10 @@ function registerMembershipRoutes(app, { pool }) {
     }
 
     await pool.query("UPDATE Ticket SET Membership_ID = NULL WHERE Membership_ID = ?", [idToDelete]);
-await pool.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
-    setFlash(req, "Membership successfully deleted!");
+    await pool.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+    setFlash(req, "Membership cancelled.");
     res.redirect("/add-membership");
   }));
-
- 
 }
 
 module.exports = { registerMembershipRoutes };

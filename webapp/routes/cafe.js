@@ -116,7 +116,7 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food");
   }));
 
-  app.get("/add-food-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-food-sale", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [sales] = await pool.query("SELECT Food_Sale_ID, Sale_Date, Employee_ID FROM Food_Sale");
 
     let editSale = null;
@@ -183,7 +183,7 @@ function registerCafeRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-food-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-food-sale", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const saleId = req.body.sale_id || null;
     const { sale_date: saleDate } = req.body;
 
@@ -210,7 +210,7 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food-sale-line");
   }));
 
-  app.post("/delete-food-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-food-sale", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { sale_id: saleId } = req.body;
 
     await pool.query("DELETE FROM Food_Sale_Line WHERE Food_Sale_ID = ?", [saleId]);
@@ -219,7 +219,7 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food-sale");
   }));
 
-  app.get("/add-food-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-food-sale-line", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [sales] = await pool.query("SELECT Food_Sale_ID FROM Food_Sale");
     const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price FROM Food");
     const [lines] = await pool.query(`
@@ -306,7 +306,7 @@ function registerCafeRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-food-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-food-sale-line", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     
     const { sale_id: saleId, food_id: foodId, quantity, original_food } = req.body;
 
@@ -335,7 +335,7 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food-sale-line");
   }));
 
-  app.post("/delete-food-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-food-sale-line", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { sale_id: saleId, food_id: foodId } = req.body;
 
     await pool.query(

@@ -2,10 +2,8 @@ const {
   asyncHandler,
   escapeHtml,
   formatDisplayDate,
-  renderFlash,
   renderPage,
   requireLogin,
-  setFlash,
   allowRoles
 } = require("../helpers");
 

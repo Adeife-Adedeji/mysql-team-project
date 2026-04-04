@@ -3,8 +3,6 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
-  isEmployee,
-  isSupervisor,
   renderFlash,
   renderPage,
   requireLogin,
@@ -137,7 +135,7 @@ function registerGiftShopRoutes(app, { pool }) {
     res.redirect("/add-item");
   }));
 
-  app.get("/add-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-sale", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [sales] = await pool.query("SELECT Gift_Shop_Sale_ID, Sale_Date, Employee_ID FROM Gift_Shop_Sale");
     let editSale = null;
 
@@ -195,7 +193,7 @@ function registerGiftShopRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-sale", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const saleId = req.body.sale_id || null;
     const { sale_date: saleDate } = req.body;
 
@@ -221,7 +219,7 @@ function registerGiftShopRoutes(app, { pool }) {
   }
   }));
 
-  app.post("/delete-sale", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-sale", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { sale_id: saleId } = req.body;
 
     await pool.query("DELETE FROM Gift_Shop_Sale_Line WHERE Gift_Shop_Sale_ID = ?", [saleId]);
@@ -230,7 +228,7 @@ function registerGiftShopRoutes(app, { pool }) {
     res.redirect("/add-sale");
   }));
 
-  app.get("/add-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-sale-line", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [sales] = await pool.query("SELECT Gift_Shop_Sale_ID FROM Gift_Shop_Sale");
     const [items] = await pool.query("SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item FROM Gift_Shop_Item");
     const [lines] = await pool.query(`
@@ -310,7 +308,7 @@ function registerGiftShopRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-sale-line", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { sale_id: saleId, item_id: itemId, quantity, original_item } = req.body;
 
     if (!saleId || !itemId || !quantity) {
@@ -345,7 +343,7 @@ function registerGiftShopRoutes(app, { pool }) {
     res.redirect("/add-sale-line");
   }));
 
-  app.post("/delete-sale-line", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-sale-line", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { sale_id: saleId, item_id: itemId } = req.body;
 
     await pool.query(

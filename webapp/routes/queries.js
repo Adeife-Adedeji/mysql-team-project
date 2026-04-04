@@ -2,11 +2,8 @@ const {
   asyncHandler,
   escapeHtml,
   formatDisplayDate,
-  renderFlash,
   renderPage,
-  requireLogin,
-  setFlash,
-  allowRoles
+  requireLogin
 } = require("../helpers");
 
 function registerQueriesRoutes(app, { pool }) {

@@ -67,6 +67,45 @@ VALUES (
         NULL,
         'seed',
         CURRENT_DATE
+    ),
+    (
+        3,
+        'Admissions',
+        'Clerk',
+        CURRENT_DATE,
+        'admissions@example.com',
+        15.00,
+        'admissions',
+        NULL,
+        NULL,
+        'seed',
+        CURRENT_DATE
+    ),
+    (
+        4,
+        'Giftshop',
+        'Worker',
+        CURRENT_DATE,
+        'giftshop@example.com',
+        15.00,
+        'giftshop',
+        NULL,
+        NULL,
+        'seed',
+        CURRENT_DATE
+    ),
+    (
+        5,
+        'Cafe',
+        'Barista',
+        CURRENT_DATE,
+        'cafe@example.com',
+        15.00,
+        'cafe',
+        NULL,
+        NULL,
+        'seed',
+        CURRENT_DATE
     )
 ON DUPLICATE KEY UPDATE
     Last_Name = VALUES(Last_Name),
@@ -128,7 +167,32 @@ VALUES (
         'supervisor',
         TRUE,
         2
+    ),
+    (
+        'Clerk',
+        'admissions@example.com',
+        'admissions123',
+        'admissions',
+        TRUE,
+        3
+    ),
+    (
+        'Worker',
+        'giftshop@example.com',
+        'giftshop123',
+        'giftshop',
+        TRUE,
+        4
+    ),
+    (
+        'Barista',
+        'cafe@example.com',
+        'cafe123',
+        'cafe',
+        TRUE,
+        5
     )
+
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     password = VALUES(password),
