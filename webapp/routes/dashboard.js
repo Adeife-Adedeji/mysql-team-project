@@ -122,6 +122,7 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Orders</h2>
             <div class="button-row dashboard-actions">
+              <a class="button" href="/add-food">Café Menu</a>
               <a class="button" href="/add-food-sale">New Café Sale</a>
               <a class="button button-secondary" href="/add-food-sale-line">Add Items to Order</a>
             </div>

@@ -12,7 +12,7 @@ const {
 
 function registerCafeRoutes(app, { pool }) {
 
-  app.get("/add-food", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
     const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price FROM Food");
 
     let editFood = null;
@@ -84,7 +84,7 @@ function registerCafeRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-food", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
     const foodId = req.body.food_id || null;
     const { food_name: foodName, food_price: foodPrice } = req.body;
 

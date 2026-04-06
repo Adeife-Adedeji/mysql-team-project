@@ -45,7 +45,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
           <label>Visit Date
             <input type="date" name="visit_date" required>
           </label>
-          <label>Ticket Type
+          <label>Select Tickets
             <select name="ticket_type" required>
               <option value="General Admission">General Admission</option>
               <option value="Student">Student</option>
