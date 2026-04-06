@@ -88,25 +88,6 @@ BEGIN
 END;
 
 --@Block
--- Auto fill ticket info from membership when creating a ticket
-CREATE TRIGGER trigger_auto_fill_ticket_info
-BEFORE INSERT ON Ticket
-FOR EACH ROW
-BEGIN
-    IF NEW.Membership_ID iS NOT NULL THEN
-        SET NEW.Last_Name = (
-            SELECT Last_Name FROM Membership
-            WHERE Membership_ID = NEW.Membership_ID);
-        SET NEW.First_Name = (
-            SELECT First_Name FROM Membership
-            WHERE Membership_ID = NEW.Membership_ID);
-        SET NEW.Email = (
-            SELECT Email FROM Membership
-            WHERE Membership_ID = NEW.Membership_ID);
-    END IF;
-END;
-
---@Block
 -- prevent date of death from being before date of birth for artists
 CREATE TRIGGER trigger_check_artist_dates
 BEFORE INSERT ON Artist
@@ -117,3 +98,5 @@ BEGIN
         SET MESSAGE_TEXT = 'Date of death cannot be before date of birth';
     END IF;
 END;
+
+--@Block
