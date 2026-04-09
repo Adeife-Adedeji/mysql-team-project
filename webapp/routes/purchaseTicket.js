@@ -15,7 +15,6 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name",
     );
 
-    // Validate membership exists before querying tickets
     let membershipId = req.session.user.membershipId ?? null;
     if (membershipId !== null) {
       const [memberRows] = await pool.query(
@@ -131,7 +130,6 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         return res.redirect("/purchase-ticket");
     }
 
-    // Verify the membership exists in the DB — required to link the ticket
     const membershipId = req.session.user.membershipId ?? null;
     if (membershipId === null) {
       setFlash(req, "No membership found for your account. Please contact staff.");

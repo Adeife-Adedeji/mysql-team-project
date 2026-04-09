@@ -216,6 +216,7 @@ CREATE TABLE Schedule (
     CONSTRAINT fk_Schedule_Employee FOREIGN KEY (Employee_ID) REFERENCES Employee (Employee_ID),
     CONSTRAINT fk_Schedule_Exhibition FOREIGN KEY (Exhibition_ID) REFERENCES Exhibition (Exhibition_ID)
 );
+--@Block
 
 -- Added: Artwork Condition Report Table
 CREATE TABLE Artwork_Condition_Report (
