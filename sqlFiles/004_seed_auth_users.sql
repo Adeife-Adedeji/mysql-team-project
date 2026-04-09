@@ -113,6 +113,7 @@ ON DUPLICATE KEY UPDATE
     Date_Hired = VALUES(Date_Hired),
     Email = VALUES(Email),
     Hourly_Pay = VALUES(Hourly_Pay),
+    Salary = NULL,
     Employee_Role = VALUES(Employee_Role),
     Supervisor_ID = VALUES(Supervisor_ID),
     Department_ID = VALUES(Department_ID),

@@ -112,8 +112,8 @@ BEGIN
     END IF;
 END;
 
---@Block
 -- trigger to reduce stock quantity in gift shop when a sale is made
+--@Block
 CREATE TRIGGER trigger_reduce_gift_shop_stock
 AFTER INSERT ON Gift_Shop_Sale_Line
 FOR EACH ROW
@@ -202,5 +202,55 @@ BEGIN
                        ' has a higher salary than their supervisor (Employee_ID: ', NEW.Supervisor_ID, ')')
             );
         END IF;
+    END IF;
+END;
+
+-- Added: Trigger: Auto Flag Restoration
+--@Block
+CREATE TRIGGER trigger_auto_flag_restoration
+BEFORE INSERT ON Artwork_Condition_Report
+FOR EACH ROW
+BEGIN
+    IF NEW.Condition_Status IN ('Poor', 'Critical') THEN
+        SET NEW.Restoration_Required = TRUE;
+    END IF;
+END;
+
+-- Added: Trigger: Check Artwork On Loan
+--@Block
+CREATE TRIGGER trigger_check_artwork_on_loan
+BEFORE INSERT ON Exhibition_Artwork
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM Artwork_Loan
+        WHERE Artwork_ID = NEW.Artwork_ID
+          AND Loan_Type  = 'Outgoing'
+          AND Status     = 'Active'
+          AND CURDATE() BETWEEN Start_Date AND End_Date
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot assign artwork to exhibition: it is currently on outgoing loan to another institution';
+    END IF;
+END;
+
+-- Added: Trigger: Check Tour Capacity
+--@Block
+CREATE TRIGGER trigger_check_tour_capacity
+BEFORE INSERT ON Tour_Registration
+FOR EACH ROW
+BEGIN
+    IF (
+        (SELECT COUNT(*)
+         FROM Tour_Registration
+         WHERE Tour_ID = NEW.Tour_ID)
+        >=
+        (SELECT Max_Capacity
+         FROM Tour
+         WHERE Tour_ID = NEW.Tour_ID)
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Tour is at full capacity';
     END IF;
 END;

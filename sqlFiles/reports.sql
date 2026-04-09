@@ -61,6 +61,59 @@ BEGIN
     ORDER BY T.Purchase_Date DESC, T.Ticket_ID;
 END;
 
+-- Added: Report Artwork Conditions
+--@block
+CREATE PROCEDURE ReportArtworkConditions()
+BEGIN
+    SELECT
+        AW.Artwork_ID,
+        AW.Title,
+        AR.Artist_Name,
+        CR.Condition_Status,
+        CR.Report_Date,
+        CR.Restoration_Required,
+        CONCAT(E.First_Name, ' ', E.Last_Name) AS Inspector_Name
+    FROM Artwork AW
+    JOIN Artist AR ON AW.Artist_ID = AR.Artist_ID
+    LEFT JOIN Artwork_Condition_Report CR
+        ON AW.Artwork_ID = CR.Artwork_ID
+        AND CR.Report_ID = (
+            SELECT Report_ID
+            FROM Artwork_Condition_Report
+            WHERE Artwork_ID = AW.Artwork_ID
+            ORDER BY Report_Date DESC
+            LIMIT 1
+        )
+    LEFT JOIN Employee E ON CR.Inspector_ID = E.Employee_ID
+    ORDER BY
+        FIELD(CR.Condition_Status, 'Critical', 'Poor', 'Fair', 'Good', 'Excellent'),
+        AW.Title;
+END;
+
+-- Added: Report Active Loans
+--@block
+CREATE PROCEDURE ReportActiveLoans()
+BEGIN
+    SELECT
+        AL.Loan_ID,
+        AW.Title           AS Artwork_Title,
+        AR.Artist_Name,
+        I.Institution_Name,
+        AL.Loan_Type,
+        AL.Start_Date,
+        AL.End_Date,
+        AL.Insurance_Value,
+        AL.Status,
+        CONCAT(E.First_Name, ' ', E.Last_Name) AS Approved_By_Name
+    FROM Artwork_Loan AL
+    JOIN Artwork     AW ON AL.Artwork_ID     = AW.Artwork_ID
+    JOIN Artist      AR ON AW.Artist_ID      = AR.Artist_ID
+    JOIN Institution I  ON AL.Institution_ID = I.Institution_ID
+    LEFT JOIN Employee E ON AL.Approved_By   = E.Employee_ID
+    WHERE AL.Status = 'Active'
+    ORDER BY AL.End_Date ASC;
+END;
+
 /*
 --@block
 CREATE VIEW vw_ArtworkByArtist AS

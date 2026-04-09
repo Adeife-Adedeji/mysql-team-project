@@ -1,4 +1,5 @@
 const {
+  asyncHandler,
   escapeHtml,
   isEmployee,
   isSupervisor,
@@ -11,7 +12,7 @@ const {
 } = require("../helpers");
 
 function registerDashboardRoutes(app, { pool }) {
-  app.get("/dashboard", requireLogin, async (req, res) => {
+  app.get("/dashboard", requireLogin, asyncHandler(async (req, res) => {
     const user = req.session.user;
     if (!isEmployee(user) && !isSupervisor(user)) {
       return res.send(renderPage({
@@ -31,6 +32,7 @@ function registerDashboardRoutes(app, { pool }) {
             <h2>Plan Your Visit</h2>
             <div class="button-row dashboard-actions">
               <a class="button" href="/purchase-ticket">Buy Tickets Online</a>
+              <a class="button" href="/tour-register">Browse Guided Tours</a>
               <a class="button button-secondary" href="/queries">Explore the Collection</a>
             </div>
           </section>
@@ -136,21 +138,43 @@ function registerDashboardRoutes(app, { pool }) {
     }
 
     if (isEmployee(user)) {
-      eyebrow = "Museum Operations";
-      title = "Daily Operations";
-      intro = "Use the role-specific operations pages assigned to your museum department.";
-      sections = `
-        <section class="dashboard-section">
-          <h2>Retail and Cafe</h2>
-          <div class="button-row dashboard-actions">
-            <a class="button" href="/add-sale">Create Gift Shop Sale</a>
-            <a class="button" href="/add-sale-line">Add Items to Gift Shop Sale</a>
-            <a class="button" href="/add-food-sale">Create Cafe Sale</a>
-            <a class="button" href="/add-food-sale-line">Add Food to Cafe Sale</a>
-            <a class="button button-secondary" href="/queries">Operational Queries</a>
-          </div>
+      return res.send(renderPage({
+        title: "Daily Operations",
+        user,
+        content: `
+        <section class="card narrow dashboard-card">
+          <p class="eyebrow">Museum Operations</p>
+          <h1>Welcome, ${escapeHtml(user.name.split(" ")[0])}</h1>
+          <p class="dashboard-intro">Record admissions, manage memberships, and process retail or cafe sales.</p>
+          <dl class="details dashboard-details">
+            <div class="detail-item"><dt>Name</dt><dd>${escapeHtml(user.name)}</dd></div>
+            <div class="detail-item"><dt>Email</dt><dd>${escapeHtml(user.email)}</dd></div>
+          </dl>
+          ${renderFlash(req)}
+          <section class="dashboard-section">
+            <h2>Admissions Desk</h2>
+            <div class="button-row dashboard-actions">
+              <a class="button" href="/add-ticket">Manage Ticket Orders</a>
+              <a class="button" href="/add-ticket-line">Manage Ticket Line Items</a>
+              <a class="button button-secondary" href="/add-membership">Manage Memberships</a>
+            </div>
+          </section>
+          <section class="dashboard-section">
+            <h2>Retail and Cafe</h2>
+            <div class="button-row dashboard-actions">
+              <a class="button" href="/add-sale">Create Gift Shop Sale</a>
+              <a class="button" href="/add-sale-line">Add Items to Gift Shop Sale</a>
+              <a class="button" href="/add-food-sale">Create Cafe Sale</a>
+              <a class="button" href="/add-food-sale-line">Add Food to Cafe Sale</a>
+              <a class="button button-secondary" href="/queries">Operational Queries</a>
+            </div>
+          </section>
+          <form method="post" action="/logout" class="dashboard-footer">
+            <button class="button" type="submit">Log Out</button>
+          </form>
         </section>
-      `;
+      `,
+      }));
     }
 
     const [notifications] = await pool.query(
@@ -259,6 +283,20 @@ function registerDashboardRoutes(app, { pool }) {
           </div>
         </section>
         <section class="dashboard-section">
+          <h2>Conservation &amp; Loans</h2>
+          <div class="button-row dashboard-actions">
+            <a class="button" href="/condition-reports">Condition Reports</a>
+            <a class="button" href="/artwork-loans">Artwork Loans</a>
+            <a class="button button-secondary" href="/institutions">Manage Institutions</a>
+          </div>
+        </section>
+        <section class="dashboard-section">
+          <h2>Guided Tours</h2>
+          <div class="button-row dashboard-actions">
+            <a class="button" href="/tours">Schedule Tours</a>
+          </div>
+        </section>
+        <section class="dashboard-section">
           <h2>Staff &amp; Scheduling</h2>
           <div class="button-row dashboard-actions">
             <a class="button" href="/add-employee">Manage Staff</a>
@@ -289,22 +327,22 @@ function registerDashboardRoutes(app, { pool }) {
       </section>
     `,
     }));
-  });
+  }));
 
-  app.post("/notifications/:id/read", requireLogin, async (req, res) => {
+  app.post("/notifications/:id/read", requireLogin, asyncHandler(async (req, res) => {
     await pool.query(
       `UPDATE manager_notifications SET is_read = TRUE WHERE notification_id = ?`,
       [req.params.id]
     );
     res.redirect("/dashboard");
-  });
+  }));
 
-  app.post("/notifications/clear", requireLogin, async (req, res) => {
+  app.post("/notifications/clear", requireLogin, asyncHandler(async (req, res) => {
     await pool.query(`UPDATE manager_notifications SET is_read = TRUE`);
     res.redirect("/dashboard");
-  });
+  }));
 
-  app.post("/trigger-violations/:id/resolve", requireLogin, async (req, res) => {
+  app.post("/trigger-violations/:id/resolve", requireLogin, asyncHandler(async (req, res) => {
     if (!isSupervisor(req.session.user)) {
       return res.redirect("/dashboard");
     }
@@ -314,7 +352,7 @@ function registerDashboardRoutes(app, { pool }) {
       [req.params.id],
     );
     res.redirect("/dashboard");
-  });
+  }));
 }
 
 module.exports = { registerDashboardRoutes };

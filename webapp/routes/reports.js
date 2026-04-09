@@ -10,18 +10,18 @@ const {
 function registerReportsRoutes(app, { pool }) {
     
   app.get("/reports", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
-    const salesStart = req.query.sales_start?.trim() || "";
-    const salesEnd = req.query.sales_end?.trim() || "";
-    const department = req.query.department?.trim() || "";
-    const revenueStart = req.query.revenue_start?.trim() || "";
-    const revenueEnd = req.query.revenue_end?.trim() || "";
+    const salesStart = req.query.sales_start?.trim() || null;
+    const salesEnd = req.query.sales_end?.trim() || null;
+    const department = req.query.department?.trim() || null;
+    const revenueStart = req.query.revenue_start?.trim() || null;
+    const revenueEnd = req.query.revenue_end?.trim() || null;
 
     const [ticketSalesRows] = await pool.query(
       `SELECT T.Visit_Date, TL.Ticket_Type, SUM(TL.Quantity) AS Tickets_Sold, SUM(TL.Total_sum_of_ticket) AS Revenue
        FROM Ticket T
        JOIN ticket_line TL ON TL.Ticket_ID = T.Ticket_ID
-       WHERE (? = '' OR T.Purchase_Date >= ?)
-         AND (? = '' OR T.Purchase_Date <= ?)
+       WHERE (? IS NULL OR T.Purchase_Date >= ?)
+         AND (? IS NULL OR T.Purchase_Date <= ?)
        GROUP BY T.Visit_Date, TL.Ticket_Type
        ORDER BY T.Visit_Date DESC, TL.Ticket_Type`,
       [salesStart, salesStart, salesEnd, salesEnd],
@@ -35,7 +35,7 @@ function registerReportsRoutes(app, { pool }) {
        FROM Employee E
        LEFT JOIN Department D ON D.Department_ID = E.Department_ID
        LEFT JOIN Employee S ON S.Employee_ID = E.Supervisor_ID
-       WHERE (? = '' OR D.Department_Name LIKE CONCAT('%', ?, '%'))
+       WHERE (? IS NULL OR D.Department_Name LIKE CONCAT('%', ?, '%'))
        ORDER BY D.Department_Name, E.Last_Name, E.First_Name`,
       [department, department],
     );
@@ -47,8 +47,8 @@ function registerReportsRoutes(app, { pool }) {
        FROM ticket_line TL
        JOIN Ticket T ON T.Ticket_ID = TL.Ticket_ID
        LEFT JOIN Exhibition EX ON EX.Exhibition_ID = TL.Exhibition_ID
-       WHERE (? = '' OR T.Visit_Date >= ?)
-         AND (? = '' OR T.Visit_Date <= ?)
+       WHERE (? IS NULL OR T.Visit_Date >= ?)
+         AND (? IS NULL OR T.Visit_Date <= ?)
        GROUP BY COALESCE(EX.Exhibition_Name, 'General Admission')
        HAVING SUM(TL.Quantity) > 0
        ORDER BY Revenue DESC, Exhibition_Name`,
@@ -94,10 +94,10 @@ function registerReportsRoutes(app, { pool }) {
         <h2>Ticket Sales by Date Range</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Purchase Start
-            <input type="date" name="sales_start" value="${escapeHtml(salesStart)}">
+            <input type="date" name="sales_start" value="${escapeHtml(salesStart ?? '')}">
           </label>
           <label>Purchase End
-            <input type="date" name="sales_end" value="${escapeHtml(salesEnd)}">
+            <input type="date" name="sales_end" value="${escapeHtml(salesEnd ?? '')}">
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
@@ -110,7 +110,7 @@ function registerReportsRoutes(app, { pool }) {
         <h2>Employees by Department</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Department Name
-            <input type="text" name="department" value="${escapeHtml(department)}">
+            <input type="text" name="department" value="${escapeHtml(department ?? '')}">
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
@@ -123,10 +123,10 @@ function registerReportsRoutes(app, { pool }) {
         <h2>Revenue by Exhibition</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Visit Start
-            <input type="date" name="revenue_start" value="${escapeHtml(revenueStart)}">
+            <input type="date" name="revenue_start" value="${escapeHtml(revenueStart ?? '')}">
           </label>
           <label>Visit End
-            <input type="date" name="revenue_end" value="${escapeHtml(revenueEnd)}">
+            <input type="date" name="revenue_end" value="${escapeHtml(revenueEnd ?? '')}">
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>

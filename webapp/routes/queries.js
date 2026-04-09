@@ -8,19 +8,19 @@ const {
 
 function registerQueriesRoutes(app, { pool }) {
   app.get("/queries", requireLogin, asyncHandler(async (req, res) => {
-    const artistSearch = req.query.artist?.trim() || "";
-    const styleSearch = req.query.style?.trim() || "";
-    const startDate = req.query.start_date?.trim() || "";
-    const endDate = req.query.end_date?.trim() || "";
-    const categorySearch = req.query.category?.trim() || "";
-    const maxPrice = req.query.max_price?.trim() || "";
+    const artistSearch = req.query.artist?.trim() || null;
+    const styleSearch = req.query.style?.trim() || null;
+    const startDate = req.query.start_date?.trim() || null;
+    const endDate = req.query.end_date?.trim() || null;
+    const categorySearch = req.query.category?.trim() || null;
+    const maxPrice = req.query.max_price?.trim() || null;
 
     const [artworkResults] = await pool.query(
       `SELECT AW.Title, AW.Type, AW.Art_Style, AW.Time_Period, AR.Artist_Name
        FROM Artwork AW
        JOIN Artist AR ON AR.Artist_ID = AW.Artist_ID
-       WHERE (? = '' OR AR.Artist_Name LIKE CONCAT('%', ?, '%'))
-         AND (? = '' OR AW.Art_Style LIKE CONCAT('%', ?, '%'))
+       WHERE (? IS NULL OR AR.Artist_Name LIKE CONCAT('%', ?, '%'))
+         AND (? IS NULL OR AW.Art_Style LIKE CONCAT('%', ?, '%'))
        ORDER BY AR.Artist_Name, AW.Title
        LIMIT 50`,
       [artistSearch, artistSearch, styleSearch, styleSearch],
@@ -29,8 +29,8 @@ function registerQueriesRoutes(app, { pool }) {
     const [exhibitionResults] = await pool.query(
       `SELECT Exhibition_Name, Starting_Date, Ending_Date
        FROM Exhibition
-       WHERE (? = '' OR Ending_Date >= ?)
-         AND (? = '' OR Starting_Date <= ?)
+       WHERE (? IS NULL OR Ending_Date >= ?)
+         AND (? IS NULL OR Starting_Date <= ?)
        ORDER BY Starting_Date DESC
        LIMIT 50`,
       [startDate, startDate, endDate, endDate],
@@ -39,8 +39,8 @@ function registerQueriesRoutes(app, { pool }) {
     const [inventoryResults] = await pool.query(
       `SELECT Name_of_Item, Category, Price_of_Item, Stock_Quantity
        FROM Gift_Shop_Item
-       WHERE (? = '' OR Category LIKE CONCAT('%', ?, '%'))
-         AND (? = '' OR Price_of_Item <= ?)
+       WHERE (? IS NULL OR Category LIKE CONCAT('%', ?, '%'))
+         AND (? IS NULL OR Price_of_Item <= ?)
        ORDER BY Category, Name_of_Item
        LIMIT 50`,
       [categorySearch, categorySearch, maxPrice, maxPrice],
@@ -86,10 +86,10 @@ function registerQueriesRoutes(app, { pool }) {
         <h2>Artwork by Artist or Style</h2>
         <form method="get" action="/queries" class="form-grid">
           <label>Artist Name
-            <input type="text" name="artist" value="${escapeHtml(artistSearch)}">
+            <input type="text" name="artist" value="${escapeHtml(artistSearch ?? '')}">
           </label>
           <label>Art Style
-            <input type="text" name="style" value="${escapeHtml(styleSearch)}">
+            <input type="text" name="style" value="${escapeHtml(styleSearch ?? '')}">
           </label>
           <button class="button" type="submit">Run Query</button>
         </form>
@@ -102,10 +102,10 @@ function registerQueriesRoutes(app, { pool }) {
         <h2>Exhibitions by Date Range</h2>
         <form method="get" action="/queries" class="form-grid">
           <label>Start Date
-            <input type="date" name="start_date" value="${escapeHtml(startDate)}">
+            <input type="date" name="start_date" value="${escapeHtml(startDate ?? '')}">
           </label>
           <label>End Date
-            <input type="date" name="end_date" value="${escapeHtml(endDate)}">
+            <input type="date" name="end_date" value="${escapeHtml(endDate ?? '')}">
           </label>
           <button class="button" type="submit">Run Query</button>
         </form>
@@ -118,10 +118,10 @@ function registerQueriesRoutes(app, { pool }) {
         <h2>Gift Shop Inventory Lookup</h2>
         <form method="get" action="/queries" class="form-grid">
           <label>Category
-            <input type="text" name="category" value="${escapeHtml(categorySearch)}">
+            <input type="text" name="category" value="${escapeHtml(categorySearch ?? '')}">
           </label>
           <label>Maximum Price
-            <input type="number" step="0.01" min="0" name="max_price" value="${escapeHtml(maxPrice)}">
+            <input type="number" step="0.01" min="0" name="max_price" value="${escapeHtml(maxPrice ?? '')}">
           </label>
           <button class="button" type="submit">Run Query</button>
         </form>

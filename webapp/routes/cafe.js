@@ -201,11 +201,23 @@ function registerCafeRoutes(app, { pool }) {
     setFlash(req, "Food sale updated.");
     return res.redirect("/add-food-sale");
   } else {
+      let employeeId = req.session.user.employeeId;
+      if (!employeeId) {
+        const [empRows] = await pool.query(
+          "SELECT Employee_ID FROM Employee WHERE Email = ?",
+          [req.session.user.email]
+        );
+        employeeId = empRows[0]?.Employee_ID || null;
+      }
+      if (!employeeId) {
+        setFlash(req, "Employee record not found. Please contact a supervisor.");
+        return res.redirect("/add-food-sale");
+      }
       await pool.query(
-      "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (?, ?)",
-      [saleDate, req.session.user.employeeId],
-    );
-    setFlash(req, "Food sale created. Now add items.");
+        "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (?, ?)",
+        [saleDate, employeeId],
+      );
+      setFlash(req, "Food sale created. Now add items.");
   }
     res.redirect("/add-food-sale-line");
   }));

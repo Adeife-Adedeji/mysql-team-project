@@ -14,14 +14,28 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     const [exhibitions] = await pool.query(
       "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name",
     );
-    const [recentTickets] = await pool.query(
-      `SELECT Ticket_ID, Purchase_Date, Visit_Date, Payment_method
-       FROM Ticket
-       WHERE Membership_ID = ?
-       ORDER BY Purchase_Date DESC, Ticket_ID DESC
-       LIMIT 5`,
-      [req.session.user.membershipId || 0],
-    );
+
+    let membershipId = req.session.user.membershipId ?? null;
+    if (membershipId !== null) {
+      const [memberRows] = await pool.query(
+        "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
+        [membershipId],
+      );
+      if (memberRows.length === 0) membershipId = null;
+    }
+
+    const [recentTickets] = membershipId
+      ? await pool.query(
+          `SELECT Ticket_ID, Purchase_Date, Visit_Date, Payment_method
+           FROM Ticket
+           WHERE Membership_ID = ?
+           ORDER BY Purchase_Date DESC, Ticket_ID DESC
+           LIMIT 5`,
+          [membershipId],
+        )
+      : [[]];
+
+    const today = new Date().toISOString().split("T")[0];
 
     const ticketRows = recentTickets.map((ticket) => `
       <tr>
@@ -43,21 +57,18 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         ${renderFlash(req)}
         <form method="post" action="/purchase-ticket" class="form-grid">
           <label>Visit Date
-            <input type="date" name="visit_date" required>
+            <input type="date" name="visit_date" required min="${today}">
           </label>
-          <label>Select Tickets
+          <label>Ticket Type
             <select name="ticket_type" required>
-              <option value="General Admission">General Admission</option>
-              <option value="Student">Student</option>
-              <option value="Child">Child</option>
-              <option value="Senior">Senior</option>
+              <option value="">— Select —</option>
+              <option value="General Admission">General Admission ($20.00)</option>
+              <option value="Senior">Senior 65+ ($15.00)</option>
+              <option value="Child">Child under 12 ($10.00)</option>
             </select>
           </label>
           <label>Quantity
             <input type="number" name="quantity" min="1" value="1" required>
-          </label>
-          <label>Price Per Ticket
-            <input type="number" step="0.01" name="price" min="0" value="20.00" required>
           </label>
           <label>Payment Method
             <select name="payment_method" required>
@@ -100,13 +111,36 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       visit_date: visitDate,
       ticket_type: ticketType,
       quantity,
-      price,
       payment_method: paymentMethod,
       exhibition_id: exhibitionId,
     } = req.body;
 
-    if (!visitDate || !ticketType || !quantity || !price || !paymentMethod) {
+    if (!visitDate || !ticketType || !quantity || !paymentMethod) {
       setFlash(req, "All purchase fields are required.");
+      return res.redirect("/purchase-ticket");
+    }
+
+    let pricePerTicket;
+    switch (ticketType) {
+      case "General Admission": pricePerTicket = 20.00; break;
+      case "Senior":            pricePerTicket = 15.00; break;
+      case "Child":             pricePerTicket = 10.00; break;
+      default:
+        setFlash(req, "Invalid ticket type selected.");
+        return res.redirect("/purchase-ticket");
+    }
+
+    const membershipId = req.session.user.membershipId ?? null;
+    if (membershipId === null) {
+      setFlash(req, "No membership found for your account. Please contact staff.");
+      return res.redirect("/purchase-ticket");
+    }
+    const [memberRows] = await pool.query(
+      "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
+      [membershipId],
+    );
+    if (memberRows.length === 0) {
+      setFlash(req, "Your membership record could not be found. Please log out and log back in, or contact staff.");
       return res.redirect("/purchase-ticket");
     }
 
@@ -118,13 +152,13 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       const [ticketResult] = await connection.query(
         `INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Payment_method, Membership_ID)
          VALUES ('Online', CURRENT_DATE, ?, ?, ?)`,
-        [visitDate, paymentMethod, req.session.user.membershipId || null],
+        [visitDate, paymentMethod, membershipId],
       );
 
       await connection.query(
         `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
          VALUES (?, ?, ?, ?, ?)`,
-        [ticketResult.insertId, ticketType, quantity, price, exhibitionId || null],
+        [ticketResult.insertId, ticketType, quantity, pricePerTicket, exhibitionId || null],
       );
 
       await connection.commit();

@@ -137,7 +137,7 @@ function registerAdmissionRoutes(app, { pool }) {
     res.redirect("/sell-ticket");
   }));
   
-  app.get("/add-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-ticket", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [tickets] = await pool.query(
       "SELECT Ticket_ID, Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number FROM Ticket ORDER BY Ticket_ID DESC"
     );
@@ -222,7 +222,7 @@ function registerAdmissionRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-ticket", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const ticketId = req.body.ticket_id || null;
     const {
       type,
@@ -257,7 +257,7 @@ function registerAdmissionRoutes(app, { pool }) {
     res.redirect("/add-ticket");
   }));
 
-  app.post("/delete-ticket", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-ticket", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.ticket_id;
 
     if (!idToDelete) {
@@ -271,7 +271,7 @@ function registerAdmissionRoutes(app, { pool }) {
     res.redirect("/add-ticket");
   }));
 
-  app.get("/add-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.get("/add-ticket-line", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const [tickets] = await pool.query("SELECT Ticket_ID FROM Ticket ORDER BY Ticket_ID DESC");
     const [exhibitions] = await pool.query("SELECT Exhibition_ID, Exhibition_Name FROM Exhibition");
     const [lines] = await pool.query(`
@@ -329,16 +329,16 @@ function registerAdmissionRoutes(app, { pool }) {
             </select>
           </label>
           <label>Ticket Type
-            <input type="text" name="ticket_type"
-            value="${editLine ? escapeHtml(editLine.Ticket_Type) : ""}" required>
+            <select name="ticket_type" required>
+              <option value="">— Select —</option>
+              <option value="General Admission" ${editLine && editLine.Ticket_Type === "General Admission" ? "selected" : ""}>General Admission ($20.00)</option>
+              <option value="Senior" ${editLine && editLine.Ticket_Type === "Senior" ? "selected" : ""}>Senior 65+ ($15.00)</option>
+              <option value="Child" ${editLine && editLine.Ticket_Type === "Child" ? "selected" : ""}>Child under 12 ($10.00)</option>
+            </select>
           </label>
           <label>Quantity
             <input type="number" name="quantity"
             value="${editLine ? editLine.Quantity : ""}" required>
-          </label>
-          <label>Price per Ticket
-            <input type="number" step="0.01" name="price"
-            value="${editLine ? editLine.Price_per_ticket : ""}" required>
           </label>
           <label>Exhibition
             <select name="exhibition_id">
@@ -371,33 +371,43 @@ function registerAdmissionRoutes(app, { pool }) {
     }));
   }));
 
-  app.post("/add-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/add-ticket-line", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const {
       ticket_id: ticketId,
       ticket_type: ticketType,
       quantity,
-      price,
       exhibition_id: exhibitionId,
       original_type
     } = req.body;
 
-    if (!ticketId || !ticketType || !quantity || !price) {
+    if (!ticketId || !ticketType || !quantity) {
       setFlash(req, "All fields are required.");
       return res.redirect("/add-ticket-line");
     }
+
+    let pricePerTicket;
+    switch (ticketType) {
+      case "General Admission": pricePerTicket = 20.00; break;
+      case "Senior":            pricePerTicket = 15.00; break;
+      case "Child":             pricePerTicket = 10.00; break;
+      default:
+        setFlash(req, "Invalid ticket type selected.");
+        return res.redirect("/add-ticket-line");
+    }
+
     if (original_type) {
       await pool.query(
         `UPDATE ticket_line
-        SET Quantity = ?, Price_per_ticket = ?, Exhibition_ID = ?
+        SET Ticket_Type = ?, Quantity = ?, Price_per_ticket = ?, Exhibition_ID = ?
         WHERE Ticket_ID = ? AND Ticket_Type = ?`,
-        [quantity, price, exhibitionId || null, ticketId, original_type],
+        [ticketType, quantity, pricePerTicket, exhibitionId || null, ticketId, original_type],
       );
       setFlash(req, "Ticket line updated.");
     } else {
       await pool.query(
         `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
         VALUES (?, ?, ?, ?, ?)`,
-        [ticketId, ticketType, quantity, price, exhibitionId || null],
+        [ticketId, ticketType, quantity, pricePerTicket, exhibitionId || null],
       );
 
       setFlash(req, "Ticket line added.");
@@ -406,7 +416,7 @@ function registerAdmissionRoutes(app, { pool }) {
     res.redirect("/add-ticket-line");
   }));
 
-  app.post("/delete-ticket-line", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-ticket-line", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
     const { ticket_id: ticketId, ticket_type: ticketType } = req.body;
 
     await pool.query(

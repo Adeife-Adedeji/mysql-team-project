@@ -15,6 +15,9 @@ const { registerExhibitionRoutes } = require("./exhibition");
 const { registerAdmissionRoutes } = require("./admission");
 const { registerGiftShopRoutes } = require("./giftShop");
 const { registerCafeRoutes } = require("./cafe");
+const { registerConservationRoutes } = require("./conservation");
+const { registerLoansRoutes } = require("./loans");
+const { registerToursRoutes } = require("./tours");
 
 
 function registerRoutes(app, { pool }) 
@@ -36,6 +39,9 @@ function registerRoutes(app, { pool })
     registerGiftShopRoutes(app, { pool });
     registerCafeRoutes(app, { pool });
     registerScheduleRoutes(app, { pool });
+    registerConservationRoutes(app, { pool });
+    registerLoansRoutes(app, { pool });
+    registerToursRoutes(app, { pool });
 }
 
 module.exports = { registerRoutes };
