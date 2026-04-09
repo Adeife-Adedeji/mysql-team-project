@@ -138,16 +138,8 @@ function registerDashboardRoutes(app, { pool }) {
     if (isEmployee(user)) {
       eyebrow = "Museum Operations";
       title = "Daily Operations";
-      intro = "Record admissions, manage memberships, and process retail or cafe sales.";
+      intro = "Use the role-specific operations pages assigned to your museum department.";
       sections = `
-        <section class="dashboard-section">
-          <h2>Admissions Desk</h2>
-          <div class="button-row dashboard-actions">
-            <a class="button" href="/add-ticket">Manage Ticket Orders</a>
-            <a class="button" href="/add-ticket-line">Manage Ticket Line Items</a>
-            <a class="button button-secondary" href="/add-membership">Manage Memberships</a>
-          </div>
-        </section>
         <section class="dashboard-section">
           <h2>Retail and Cafe</h2>
           <div class="button-row dashboard-actions">
@@ -164,6 +156,21 @@ function registerDashboardRoutes(app, { pool }) {
     const [notifications] = await pool.query(
       `SELECT * FROM manager_notifications WHERE is_read = FALSE ORDER BY created_at DESC`
     );
+    let triggerViolations = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT violation_id, route_path, user_email, message, created_at
+         FROM trigger_violation_log
+         WHERE is_resolved = FALSE
+         ORDER BY created_at DESC
+         LIMIT 10`
+      );
+      triggerViolations = rows;
+    } catch (error) {
+      if (!error || error.code !== "ER_NO_SUCH_TABLE") {
+        throw error;
+      }
+    }
 
     const notificationsHtml = notifications.length > 0
       ? `
@@ -190,6 +197,43 @@ function registerDashboardRoutes(app, { pool }) {
           <p class="muted">No new notifications.</p>
         </section>`;
 
+    const triggerViolationsHtml = triggerViolations.length > 0
+      ? `
+        <section class="dashboard-section notifications-section">
+          <h2>Trigger Violations</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Route</th>
+                <th>User</th>
+                <th>Message</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${triggerViolations.map((violation) => `
+                <tr>
+                  <td>${new Date(violation.created_at).toLocaleString()}</td>
+                  <td>${escapeHtml(violation.route_path || "N/A")}</td>
+                  <td>${escapeHtml(violation.user_email || "N/A")}</td>
+                  <td>${escapeHtml(violation.message)}</td>
+                  <td>
+                    <form method="post" action="/trigger-violations/${violation.violation_id}/resolve" class="inline-form">
+                      <button class="button button-secondary button-small" type="submit">Resolve</button>
+                    </form>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>`
+      : `
+        <section class="dashboard-section notifications-section">
+          <h2>Trigger Violations</h2>
+          <p class="muted">No unresolved trigger violations.</p>
+        </section>`;
+
     return res.send(renderPage({
       title: "Supervisor Dashboard",
       user,
@@ -204,6 +248,7 @@ function registerDashboardRoutes(app, { pool }) {
         </dl>
         ${renderFlash(req)}
         ${notificationsHtml}
+        ${triggerViolationsHtml}
         <section class="dashboard-section">
           <h2>Collections Management</h2>
           <div class="button-row dashboard-actions">
@@ -256,6 +301,18 @@ function registerDashboardRoutes(app, { pool }) {
 
   app.post("/notifications/clear", requireLogin, async (req, res) => {
     await pool.query(`UPDATE manager_notifications SET is_read = TRUE`);
+    res.redirect("/dashboard");
+  });
+
+  app.post("/trigger-violations/:id/resolve", requireLogin, async (req, res) => {
+    if (!isSupervisor(req.session.user)) {
+      return res.redirect("/dashboard");
+    }
+
+    await pool.query(
+      `UPDATE trigger_violation_log SET is_resolved = TRUE WHERE violation_id = ?`,
+      [req.params.id],
+    );
     res.redirect("/dashboard");
   });
 }

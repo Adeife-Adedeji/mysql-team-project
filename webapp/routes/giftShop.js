@@ -32,6 +32,7 @@ function registerGiftShopRoutes(app, { pool }) {
         <td>${escapeHtml(item.Name_of_Item)}</td>
         <td>$${Number(item.Price_of_Item).toFixed(2)}</td>
         <td>${item.Stock_Quantity}</td>
+        <td>${item.Stock_Quantity > 5 ? "Available" : item.Stock_Quantity > 0 ? "Low Stock" : "Out of Stock"}</td>
         <td class="actions">
             <form method="get" action="/add-item" class="inline-form">
             <input type="hidden" name="edit_id" value="${item.Gift_Shop_Item_ID}">
@@ -80,11 +81,12 @@ function registerGiftShopRoutes(app, { pool }) {
               <th>Item Name</th>
               <th>Price</th>
               <th>Stock</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${itemRows || '<tr><td colspan="5">No items found.</td></tr>'}
+            ${itemRows || '<tr><td colspan="6">No items found.</td></tr>'}
           </tbody>
         </table>
       </section>

@@ -124,6 +124,32 @@ BEGIN
 END;
 
 --@Block
+-- keep gift shop stock accurate when a sale line is edited
+CREATE TRIGGER trigger_update_gift_shop_stock
+AFTER UPDATE ON Gift_Shop_Sale_Line
+FOR EACH ROW
+BEGIN
+    UPDATE Gift_Shop_Item
+    SET Stock_Quantity = Stock_Quantity + OLD.Quantity
+    WHERE Gift_Shop_Item_ID = OLD.Gift_Shop_Item_ID;
+
+    UPDATE Gift_Shop_Item
+    SET Stock_Quantity = Stock_Quantity - NEW.Quantity
+    WHERE Gift_Shop_Item_ID = NEW.Gift_Shop_Item_ID;
+END;
+
+--@Block
+-- restore stock if a sale line is removed
+CREATE TRIGGER trigger_restore_gift_shop_stock
+AFTER DELETE ON Gift_Shop_Sale_Line
+FOR EACH ROW
+BEGIN
+    UPDATE Gift_Shop_Item
+    SET Stock_Quantity = Stock_Quantity + OLD.Quantity
+    WHERE Gift_Shop_Item_ID = OLD.Gift_Shop_Item_ID;
+END;
+
+--@Block
 -- trigger to alert manager when stock quantity of an item in the gift shop is low
 CREATE TRIGGER trigger_low_stock_alert
 AFTER UPDATE ON Gift_Shop_Item
