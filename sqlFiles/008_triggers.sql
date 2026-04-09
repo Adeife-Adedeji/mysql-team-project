@@ -1,5 +1,12 @@
+-- HOW TO RUN: In MySQL Workbench use File > Run SQL Script (NOT the query editor lightning bolt)
+-- The DELIMITER command only works via File > Run SQL Script
+
+USE museum_db;
+
+DELIMITER $$
+
 -- checks to ensure that the number of registrations for an event does not exceed the maximum capacity of the event
---@Block
+DROP TRIGGER IF EXISTS trigger_check_event_capacity$$
 CREATE TRIGGER trigger_check_event_capacity
 BEFORE INSERT ON event_registration
 FOR EACH ROW
@@ -29,10 +36,10 @@ BEGIN
         INSERT INTO manager_notifications (source_table, source_id, message)
         VALUES ('Event', NEW.Event_ID, CONCAT('Event "', event_name, '" is now fully booked'));
     END IF;
-END;
+END$$
 
 -- trigger to check if artist has been added already
---@Block
+DROP TRIGGER IF EXISTS trigger_check_artist_exists$$
 CREATE TRIGGER trigger_check_artist_exists
 BEFORE INSERT ON Artist
 FOR EACH ROW
@@ -45,10 +52,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Artist already exists in the database';
     END IF;
-END;
+END$$
 
---@Block
 -- prevent using membership after expiration date
+DROP TRIGGER IF EXISTS trigger_check_membership_validity$$
 CREATE TRIGGER trigger_check_membership_validity
 BEFORE INSERT ON Ticket
 FOR EACH ROW
@@ -64,10 +71,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Membership has expired';
     END IF;
-END;
+END$$
 
---@Block
 -- prevent scheduling an employee for overlapping shifts
+DROP TRIGGER IF EXISTS trigger_check_employee_schedule$$
 CREATE TRIGGER trigger_check_employee_schedule
 BEFORE INSERT ON Schedule
 FOR EACH ROW
@@ -83,10 +90,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Employee has an overlapping shift';
     END IF;
-END;
+END$$
 
---@Block
 -- prevent deleting artwork that is currently on display in an exhibition
+DROP TRIGGER IF EXISTS trigger_prevent_artwork_deletion$$
 CREATE TRIGGER trigger_prevent_artwork_deletion
 BEFORE DELETE ON Artwork
 FOR EACH ROW
@@ -98,10 +105,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Cannot delete artwork that is currently on display in an exhibition';
     END IF;
-END;
+END$$
 
---@Block
 -- prevent date of death from being before date of birth for artists
+DROP TRIGGER IF EXISTS trigger_check_artist_dates$$
 CREATE TRIGGER trigger_check_artist_dates
 BEFORE INSERT ON Artist
 FOR EACH ROW
@@ -110,10 +117,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Date of death cannot be before date of birth';
     END IF;
-END;
+END$$
 
 -- trigger to reduce stock quantity in gift shop when a sale is made
---@Block
+DROP TRIGGER IF EXISTS trigger_reduce_gift_shop_stock$$
 CREATE TRIGGER trigger_reduce_gift_shop_stock
 AFTER INSERT ON Gift_Shop_Sale_Line
 FOR EACH ROW
@@ -121,10 +128,10 @@ BEGIN
     UPDATE Gift_Shop_Item
     SET Stock_Quantity = Stock_Quantity - NEW.Quantity
     WHERE Gift_Shop_Item_ID = NEW.Gift_Shop_Item_ID;
-END;
+END$$
 
---@Block
 -- keep gift shop stock accurate when a sale line is edited
+DROP TRIGGER IF EXISTS trigger_update_gift_shop_stock$$
 CREATE TRIGGER trigger_update_gift_shop_stock
 AFTER UPDATE ON Gift_Shop_Sale_Line
 FOR EACH ROW
@@ -136,10 +143,10 @@ BEGIN
     UPDATE Gift_Shop_Item
     SET Stock_Quantity = Stock_Quantity - NEW.Quantity
     WHERE Gift_Shop_Item_ID = NEW.Gift_Shop_Item_ID;
-END;
+END$$
 
---@Block
 -- restore stock if a sale line is removed
+DROP TRIGGER IF EXISTS trigger_restore_gift_shop_stock$$
 CREATE TRIGGER trigger_restore_gift_shop_stock
 AFTER DELETE ON Gift_Shop_Sale_Line
 FOR EACH ROW
@@ -147,10 +154,10 @@ BEGIN
     UPDATE Gift_Shop_Item
     SET Stock_Quantity = Stock_Quantity + OLD.Quantity
     WHERE Gift_Shop_Item_ID = OLD.Gift_Shop_Item_ID;
-END;
+END$$
 
---@Block
 -- trigger to alert manager when stock quantity of an item in the gift shop is low
+DROP TRIGGER IF EXISTS trigger_low_stock_alert$$
 CREATE TRIGGER trigger_low_stock_alert
 AFTER UPDATE ON Gift_Shop_Item
 FOR EACH ROW
@@ -163,10 +170,10 @@ BEGIN
             CONCAT('Low stock alert: "', NEW.Name_of_Item, '" has only ', NEW.Stock_Quantity, ' units remaining.')
         );
     END IF;
-END;
+END$$
 
---@Block
 -- trigger to prevent sale of items in the gift shop if stock quantity is insufficient
+DROP TRIGGER IF EXISTS trigger_check_gift_shop_stock$$
 CREATE TRIGGER trigger_check_gift_shop_stock
 BEFORE INSERT ON Gift_Shop_Sale_Line
 FOR EACH ROW
@@ -181,10 +188,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Insufficient stock for this item';
     END IF;
-END;
+END$$
 
---@Block
 -- trigger to alert manager when an employee's salary exceeds that of their supervisor
+DROP TRIGGER IF EXISTS trigger_salary_violation$$
 CREATE TRIGGER trigger_salary_violation
 BEFORE INSERT ON Employee
 FOR EACH ROW
@@ -203,10 +210,10 @@ BEGIN
             );
         END IF;
     END IF;
-END;
+END$$
 
--- Added: Trigger: Auto Flag Restoration
---@Block
+-- Trigger: Auto Flag Restoration
+DROP TRIGGER IF EXISTS trigger_auto_flag_restoration$$
 CREATE TRIGGER trigger_auto_flag_restoration
 BEFORE INSERT ON Artwork_Condition_Report
 FOR EACH ROW
@@ -214,10 +221,10 @@ BEGIN
     IF NEW.Condition_Status IN ('Poor', 'Critical') THEN
         SET NEW.Restoration_Required = TRUE;
     END IF;
-END;
+END$$
 
--- Added: Trigger: Check Artwork On Loan
---@Block
+-- Trigger: Check Artwork On Loan
+DROP TRIGGER IF EXISTS trigger_check_artwork_on_loan$$
 CREATE TRIGGER trigger_check_artwork_on_loan
 BEFORE INSERT ON Exhibition_Artwork
 FOR EACH ROW
@@ -233,10 +240,10 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Cannot assign artwork to exhibition: it is currently on outgoing loan to another institution';
     END IF;
-END;
+END$$
 
--- Added: Trigger: Check Tour Capacity
---@Block
+-- Trigger: Check Tour Capacity
+DROP TRIGGER IF EXISTS trigger_check_tour_capacity$$
 CREATE TRIGGER trigger_check_tour_capacity
 BEFORE INSERT ON Tour_Registration
 FOR EACH ROW
@@ -253,4 +260,6 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Tour is at full capacity';
     END IF;
-END;
+END$$
+
+DELIMITER ;
