@@ -31,7 +31,7 @@ function registerArtistRoutes(app, { pool }) {
         <td>${escapeHtml(artist.Artist_Name)}</td>
         <td>${escapeHtml(artist.Birth_Place || "Unknown")}</td>
         <td>${formatDisplayDate(artist.Date_of_Birth)}</td>
-        <td>${artist.Date_of_Death ? formatDisplayDate(artist.Date_of_Death) : ""}</td>
+        <td>${artist.Date_of_Death ? formatDisplayDate(artist.Date_of_Death) : "<em>Still Alive</em>"}</td>
         <td class="actions">
           <form method="get" action="/add-artist" class="inline-form">
             <input type="hidden" name="edit_id" value="${artist.Artist_ID}">
@@ -66,10 +66,20 @@ function registerArtistRoutes(app, { pool }) {
             Date of Birth
             <input type="date" name="dob" value="${editArtist ? formatDateInput(editArtist.Date_of_Birth) : ""}">
           </label>
-          <label>
-            Date of Death
-            <input type="date" name="dod" value="${editArtist ? formatDateInput(editArtist.Date_of_Death) : ""}">
-          </label>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" name="still_alive" id="stillAliveCheckbox" value="1"
+                ${editArtist ? (editArtist.Date_of_Death ? "" : "checked") : "checked"}
+                onchange="document.getElementById('dodWrapper').style.display = this.checked ? 'none' : 'flex'">
+              Artist is Still Alive
+            </label>
+            <div id="dodWrapper" style="display:${editArtist && editArtist.Date_of_Death ? 'flex' : 'none'}; flex-direction: column; gap: 4px;">
+              <label>
+                Date of Death
+                <input type="date" name="dod" value="${editArtist ? formatDateInput(editArtist.Date_of_Death) : ''}">
+              </label>
+            </div>
+          </div>
           <button class="button" type="submit">${editArtist ? "Update Artist" : "Add Artist"}</button>
         </form>
       </section>
@@ -99,7 +109,7 @@ function registerArtistRoutes(app, { pool }) {
     const id = req.body.artist_id || null;
     const name = req.body.name?.trim();
     const dob = req.body.dob || null;
-    const dod = req.body.dod || null;
+    const dod = req.body.still_alive === '1' ? null : (req.body.dod || null);
     const birthplace = req.body.birthplace?.trim() || null;
 
     if (!name) {
