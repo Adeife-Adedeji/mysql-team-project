@@ -17,15 +17,15 @@ set MYSQL="C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 echo.
 
 echo [1/3] 007_new_tables.sql
-%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museum_db < sqlFiles\007_new_tables.sql
+%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museumdb < sqlFiles\007_new_tables.sql
 if %ERRORLEVEL% NEQ 0 goto error
 
 echo [2/3] 008_triggers.sql
-%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museum_db < sqlFiles\008_triggers.sql
+%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museumdb < sqlFiles\008_triggers.sql
 if %ERRORLEVEL% NEQ 0 goto error
 
 echo [3/3] 009_reports.sql
-%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museum_db < sqlFiles\009_reports.sql
+%MYSQL% -u %MYSQL_USER% -p%MYSQL_PASS% museumdb < sqlFiles\009_reports.sql
 if %ERRORLEVEL% NEQ 0 goto error
 
 echo.

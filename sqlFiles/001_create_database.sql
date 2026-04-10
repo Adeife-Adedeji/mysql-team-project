@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS museum_db;
-USE museum_db;
+CREATE DATABASE IF NOT EXISTS museumdb;
+USE museumdb;
 
 -- Tables with no foreign keys
 

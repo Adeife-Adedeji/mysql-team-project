@@ -1,7 +1,7 @@
 -- HOW TO RUN: In MySQL Workbench use File > Run SQL Script (NOT the query editor lightning bolt)
--- Safe to run on an existing museum_db that already has the original tables (uses IF NOT EXISTS).
+-- Safe to run on an existing museumdb that already has the original tables (uses IF NOT EXISTS).
 
-USE museum_db;
+USE museumdb;
 
 -- Added: Artwork Condition Report Table
 CREATE TABLE IF NOT EXISTS Artwork_Condition_Report (
