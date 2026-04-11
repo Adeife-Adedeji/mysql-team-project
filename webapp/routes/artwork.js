@@ -26,7 +26,7 @@ function registerArtworkRoutes (app, { pool }) {
     }
 
     const [artworks] = await pool.query(`
-      SELECT Artwork.Artwork_ID, Artwork.Title, Artwork.Type, Artwork.Artist_ID, Artist.Artist_Name
+      SELECT Artwork.Artwork_ID, Artwork.Title, Artwork.Type, Artwork.Art_Style, Artwork.Time_Period, Artwork.Artist_ID, Artist.Artist_Name
       FROM Artwork
       JOIN Artist ON Artwork.Artist_ID = Artist.Artist_ID
     `);
@@ -36,6 +36,8 @@ function registerArtworkRoutes (app, { pool }) {
         <td>${artwork.Artwork_ID}</td>
         <td>${escapeHtml(artwork.Title)}</td>
         <td>${escapeHtml(artwork.Type)}</td>
+        <td>${escapeHtml(artwork.Art_Style || "—")}</td>
+        <td>${escapeHtml(artwork.Time_Period || "—")}</td>
         <td>${escapeHtml(artwork.Artist_Name)}</td>
         <td class="actions">
           <form method="get" action="/add-artwork" class="inline-form">
@@ -67,6 +69,14 @@ function registerArtworkRoutes (app, { pool }) {
             Type
             <input type="text" name="type" value="${editArtwork ? escapeHtml(editArtwork.Type) : ""}" required>
           </label>
+          <label>
+            Style
+            <input type="text" name="art_style" value="${editArtwork ? escapeHtml(editArtwork.Art_Style) : ""}" placeholder="e.g. Abstract">
+          </label>
+          <label>
+            Period
+            <input type="text" name="time_period" value="${editArtwork ? escapeHtml(editArtwork.Time_Period) : ""}" placeholder="e.g. Renaissance">
+          </label>
           <label>Artist
             <select name="artist_id" required>
               ${artists.map((artist) => `
@@ -87,6 +97,8 @@ function registerArtworkRoutes (app, { pool }) {
               <th>ID</th>
               <th>Title</th>
               <th>Type</th>
+              <th>Style</th>
+              <th>Period</th>
               <th>Artist Name</th>
               <th>Actions</th>
             </tr>
@@ -104,6 +116,8 @@ function registerArtworkRoutes (app, { pool }) {
     const id = req.body.artwork_id || null;
     const title = req.body.title?.trim();
     const type = req.body.type?.trim();
+    const artStyle = req.body.art_style?.trim() || null;
+    const timePeriod = req.body.time_period?.trim() || null;
     const artistId = req.body.artist_id;
 
     if (!title || !type || !artistId) {
@@ -113,15 +127,15 @@ function registerArtworkRoutes (app, { pool }) {
 
     if (id) {
       await pool.query(
-        "UPDATE Artwork SET Title = ?, Type = ?, Artist_ID = ? WHERE Artwork_ID = ?",
-        [title, type, artistId, id],
+        "UPDATE Artwork SET Title = ?, Type = ?, Art_Style = ?, Time_Period = ?, Artist_ID = ? WHERE Artwork_ID = ?",
+        [title, type, artStyle, timePeriod, artistId, id],
       );
       setFlash(req, "Artwork updated successfully.");
     } else {
       await pool.query(
-        `INSERT INTO Artwork (Title, Type, Artist_ID)
-         VALUES (?, ?, ?)`,
-        [title, type, artistId],
+        `INSERT INTO Artwork (Title, Type, Art_Style, Time_Period, Artist_ID)
+         VALUES (?, ?, ?, ?, ?)`,
+        [title, type, artStyle, timePeriod, artistId],
       );
       setFlash(req, "Artwork added successfully.");
     }
