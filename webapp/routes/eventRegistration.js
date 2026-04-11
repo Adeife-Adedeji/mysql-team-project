@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerEventRegistrationRoutes(app, { pool }) {
@@ -149,12 +150,21 @@ function registerEventRegistrationRoutes(app, { pool }) {
       );
       setFlash(req, "Registration updated successfully.");
     } else {
-      await pool.query(
-        `INSERT INTO event_registration (Event_ID, Membership_ID, Ticket_ID, Registration_Date)
-         VALUES (?, ?, ?, ?)`,
-        [eventId, membershipId, ticketId, registrationDate]
-      );
-      setFlash(req, "Registration added successfully.");
+      try {
+        await pool.query(
+          `INSERT INTO event_registration (Event_ID, Membership_ID, Ticket_ID, Registration_Date)
+           VALUES (?, ?, ?, ?)`,
+          [eventId, membershipId, ticketId, registrationDate]
+        );
+        setFlash(req, "Registration added successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     }
 
     res.redirect("/add-event-registration");

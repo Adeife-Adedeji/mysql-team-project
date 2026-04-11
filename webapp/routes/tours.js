@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerToursRoutes(app, { pool }) {
@@ -474,6 +475,7 @@ function registerToursRoutes(app, { pool }) {
         setFlash(req, "You are already registered for this tour.");
       } else if (err.sqlState === "45000") {
         // trigger_check_tour_capacity fired
+        await logTriggerViolation(pool, req, err.sqlMessage);
         setFlash(req, err.sqlMessage);
       } else {
         throw err;

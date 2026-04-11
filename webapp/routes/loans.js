@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerLoansRoutes(app, { pool }) {
@@ -382,6 +383,7 @@ function registerLoansRoutes(app, { pool }) {
     } catch (err) {
       // Catch the trigger signal from trigger_check_artwork_on_loan
       if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
         setFlash(req, `Cannot create loan: ${err.sqlMessage}`);
       } else {
         throw err;

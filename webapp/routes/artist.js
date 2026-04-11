@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerArtistRoutes(app, { pool }) {
@@ -126,12 +127,21 @@ function registerArtistRoutes(app, { pool }) {
       );
       setFlash(req, "Artist updated successfully.");
     } else {
-      await pool.query(
-        `INSERT INTO Artist (Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death)
-         VALUES (?, ?, ?, ?)`,
-        [name, birthplace, dob, dod],
-      );
-      setFlash(req, "Artist added successfully.");
+      try {
+        await pool.query(
+          `INSERT INTO Artist (Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death)
+           VALUES (?, ?, ?, ?)`,
+          [name, birthplace, dob, dod],
+        );
+        setFlash(req, "Artist added successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     }
 
     res.redirect("/add-artist");

@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerAdmissionRoutes(app, { pool }) {
@@ -129,7 +130,12 @@ function registerAdmissionRoutes(app, { pool }) {
       setFlash(req, `Sale recorded — Ticket #${newTicketId} issued.`);
     } catch (err) {
       await connection.rollback();
-      throw err;
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, err.sqlMessage);
+      } else {
+        throw err;
+      }
     } finally {
       connection.release();
     }
@@ -404,13 +410,21 @@ function registerAdmissionRoutes(app, { pool }) {
       );
       setFlash(req, "Ticket line updated.");
     } else {
-      await pool.query(
-        `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
-        VALUES (?, ?, ?, ?, ?)`,
-        [ticketId, ticketType, quantity, pricePerTicket, exhibitionId || null],
-      );
-
-      setFlash(req, "Ticket line added.");
+      try {
+        await pool.query(
+          `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
+          VALUES (?, ?, ?, ?, ?)`,
+          [ticketId, ticketType, quantity, pricePerTicket, exhibitionId || null],
+        );
+        setFlash(req, "Ticket line added.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     }
 
     res.redirect("/add-ticket-line");

@@ -5,7 +5,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerArtworkRoutes (app, { pool }) {
@@ -151,8 +152,17 @@ function registerArtworkRoutes (app, { pool }) {
       return res.redirect("/add-artwork");
     }
 
-    await pool.query("DELETE FROM Artwork WHERE Artwork_ID = ?", [idToDelete]);
-    setFlash(req, "Artwork successfully deleted!");
+    try {
+      await pool.query("DELETE FROM Artwork WHERE Artwork_ID = ?", [idToDelete]);
+      setFlash(req, "Artwork successfully deleted!");
+    } catch (err) {
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, err.sqlMessage);
+      } else {
+        throw err;
+      }
+    }
     res.redirect("/add-artwork");
   }));
 }

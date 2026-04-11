@@ -124,6 +124,15 @@ function allowRoles(roles) {
   };
 }
 
+async function logTriggerViolation(pool, req, message) {
+  try {
+    await pool.query(
+      `INSERT INTO trigger_violation_log (route_path, user_email, message) VALUES (?, ?, ?)`,
+      [req.path, req.session?.user?.email || null, message]
+    );
+  } catch (_) {}
+}
+
 module.exports = {
   asyncHandler,
   escapeHtml,
@@ -140,5 +149,6 @@ module.exports = {
   allowRoles,
   isAdmissions,
   isGiftShop,
-  isCafe
+  isCafe,
+  logTriggerViolation
 };

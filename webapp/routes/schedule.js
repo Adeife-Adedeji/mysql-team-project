@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerScheduleRoutes(app, { pool }) {
@@ -152,12 +153,21 @@ function registerScheduleRoutes(app, { pool }) {
       );
       setFlash(req, "Schedule updated successfully.");
     } else {
-      await pool.query(
-        `INSERT INTO Schedule (Employee_ID, Exhibition_ID, Shift_Date, Start_Time, End_Time, Duty)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null]
-      );
-      setFlash(req, "Schedule added successfully.");
+      try {
+        await pool.query(
+          `INSERT INTO Schedule (Employee_ID, Exhibition_ID, Shift_Date, Start_Time, End_Time, Duty)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null]
+        );
+        setFlash(req, "Schedule added successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     }
 
     res.redirect("/add-schedule");

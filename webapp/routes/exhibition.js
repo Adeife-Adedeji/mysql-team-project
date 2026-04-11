@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerExhibitionRoutes(app, { pool }) {
@@ -255,12 +256,21 @@ function registerExhibitionRoutes(app, { pool }) {
       );
       setFlash(req, "Artwork link updated successfully.");
     } else {
-      await pool.query(
-        `INSERT INTO Exhibition_Artwork (Exhibition_ID, Artwork_ID, Display_Room, Date_Installed)
-         VALUES (?, ?, ?, ?)`,
-        [exhibitionId, artworkId, displayRoom || null, dateInstalled || null],
-      );
-      setFlash(req, "Artwork linked successfully.");
+      try {
+        await pool.query(
+          `INSERT INTO Exhibition_Artwork (Exhibition_ID, Artwork_ID, Display_Room, Date_Installed)
+           VALUES (?, ?, ?, ?)`,
+          [exhibitionId, artworkId, displayRoom || null, dateInstalled || null],
+        );
+        setFlash(req, "Artwork linked successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     }
 
     res.redirect("/add-exhibition-artwork");

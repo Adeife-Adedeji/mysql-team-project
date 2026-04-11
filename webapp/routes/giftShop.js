@@ -7,7 +7,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerGiftShopRoutes(app, { pool }) {
@@ -362,13 +363,22 @@ function registerGiftShopRoutes(app, { pool }) {
     );
     setFlash(req, "Sale line updated.");
   } else {
-    await pool.query(
-      `INSERT INTO Gift_Shop_Sale_Line
-       (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
-       VALUES (?, ?, ?, ?, ?)`,
-      [saleId, itemId, quantity, price, total],
-    );
-    setFlash(req, "Item added to sale.");
+    try {
+      await pool.query(
+        `INSERT INTO Gift_Shop_Sale_Line
+         (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
+         VALUES (?, ?, ?, ?, ?)`,
+        [saleId, itemId, quantity, price, total],
+      );
+      setFlash(req, "Item added to sale.");
+    } catch (err) {
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, err.sqlMessage);
+      } else {
+        throw err;
+      }
+    }
   }
     res.redirect("/add-sale-line");
   }));
