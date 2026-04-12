@@ -462,139 +462,199 @@ function registerGiftShopRoutes(app, { pool }) {
     res.redirect("/add-sale-line");
   }));
   app.get("/gift-order", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const [items] = await pool.query("SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item, Stock_Quantity FROM Gift_Shop_Item");
+    const cart = req.session.giftCart || [];
+    const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
 
-  const [items] = await pool.query("SELECT * FROM Gift_Shop_Item");
-  const cart = req.session.giftCart || [];
+    const menuRows = items.map(item => {
+      const stockLabel = item.Stock_Quantity === 0
+        ? '<span style="color:#c0392b;font-size:0.85rem;">Out of Stock</span>'
+        : item.Stock_Quantity <= 5
+          ? `<span style="color:#e67e22;font-size:0.85rem;">${item.Stock_Quantity} left</span>`
+          : `<span style="color:#27ae60;font-size:0.85rem;">In Stock</span>`;
+      return `
+        <tr>
+          <td>${escapeHtml(item.Name_of_Item)}</td>
+          <td>$${Number(item.Price_of_Item).toFixed(2)}</td>
+          <td>${stockLabel}</td>
+          <td>${item.Stock_Quantity > 0
+            ? `<form method="post" action="/gift-order/add-item" class="inline-form">
+                <input type="hidden" name="item_id" value="${item.Gift_Shop_Item_ID}">
+                <button class="button" type="submit" style="padding:0.3rem 0.8rem;">Add</button>
+               </form>`
+            : '<span style="color:#aaa;">Unavailable</span>'
+          }</td>
+        </tr>`;
+    }).join('');
 
-  res.send(renderPage({
-    title: "Gift Shop Order",
-    user: req.session.user,
-    content: `
-<h1>Gift Shop</h1>
+    const cartRows = cart.map(item => `
+      <tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>$${Number(item.price).toFixed(2)}</td>
+        <td>${item.qty}</td>
+        <td>$${(item.price * item.qty).toFixed(2)}</td>
+        <td>
+          <form method="post" action="/gift-order/remove-item" class="inline-form">
+            <input type="hidden" name="item_id" value="${item.id}">
+            <button class="link-button danger" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>`).join('');
 
-${items.map(item => `
-<div>
-  ${item.Name_of_Item} - $${item.Price_of_Item}
-  <form method="post" action="/gift-order/add-item">
-    <input type="hidden" name="item_id" value="${item.Gift_Shop_Item_ID}">
-    <button>Add</button>
-  </form>
-</div>
-`).join("")}
-
-<h2>Cart</h2>
-${cart.map(item => `
-<div>${item.name} x ${item.qty}</div>
-`).join("")}
-
-<form method="get" action="/gift-order/checkout">
-<button>Checkout</button>
-</form>
-`
+    res.send(renderPage({
+      title: "New Gift Shop Order",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <h1>New Gift Shop Order</h1>
+        ${renderFlash(req)}
+        <h2>Items</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+          <tbody>${menuRows || '<tr><td colspan="4">No items available.</td></tr>'}</tbody>
+        </table>
+      </section>
+      <section class="card narrow">
+        <h2>Cart</h2>
+        ${cart.length === 0
+          ? '<p style="color:#888;">No items in cart yet.</p>'
+          : `<table>
+              <thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
+              <tbody>${cartRows}</tbody>
+              <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${cartTotal.toFixed(2)}</strong></td><td></td></tr></tfoot>
+             </table>
+             <div style="display:flex;gap:1rem;margin-top:1rem;">
+               <a class="button" href="/gift-order/checkout">Checkout</a>
+               <form method="post" action="/gift-order/clear">
+                 <button class="button button-secondary" type="submit">Clear Cart</button>
+               </form>
+             </div>`
+        }
+      </section>`
+    }));
   }));
-}));
 
-app.get("/gift-order/checkout", requireLogin, asyncHandler(async (req, res) => {
-  const cart = req.session.giftCart || [];
+  app.get("/gift-order/checkout", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const cart = req.session.giftCart || [];
+    if (cart.length === 0) {
+      setFlash(req, "Cart is empty.");
+      return res.redirect("/gift-order");
+    }
 
-  if (cart.length === 0) {
-    setFlash(req, "Cart is empty.");
-    return res.redirect("/gift-order");
-  }
+    let total = 0;
+    const itemRows = cart.map(item => {
+      const subtotal = item.price * item.qty;
+      total += subtotal;
+      return `<tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${item.qty}</td>
+        <td>$${Number(item.price).toFixed(2)}</td>
+        <td>$${subtotal.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
 
-  let total = 0;
-
-  const itemsHtml = cart.map(item => {
-    const subtotal = item.price * item.qty;
-    total += subtotal;
-
-    return `
-      <div style="display:flex; justify-content:space-between; margin:10px 0;">
-        <span>${item.name} x ${item.qty}</span>
-        <span>$${subtotal.toFixed(2)}</span>
-      </div>
-    `;
-  }).join("");
-
-  res.send(renderPage({
-    title: "Gift Checkout",
-    user: req.session.user,
-    content: `
-      <h1>Gift Order Summary</h1>
-
-      ${itemsHtml}
-
-      <hr>
-      <h2>Total: $${total.toFixed(2)}</h2>
-
-      <form method="post" action="/gift-order/checkout">
-        <button class="button">Confirm Order</button>
-      </form>
-
-      <a href="/gift-order">⬅ Back to cart</a>
-    `
+    res.send(renderPage({
+      title: "Gift Shop Checkout",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <h1>Order Summary</h1>
+        ${renderFlash(req)}
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+          <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${total.toFixed(2)}</strong></td></tr></tfoot>
+        </table>
+        <div style="display:flex;gap:1rem;margin-top:1.5rem;">
+          <form method="post" action="/gift-order/checkout">
+            <button class="button" type="submit">Confirm Order</button>
+          </form>
+          <a class="button button-secondary" href="/gift-order">Back to Cart</a>
+        </div>
+      </section>`
+    }));
   }));
-}));
 
-app.post("/gift-order/add-item", requireLogin, asyncHandler(async (req, res) => {
-  const { item_id } = req.body;
-
-  const [[item]] = await pool.query(
-    "SELECT * FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?",
-    [item_id]
-  );
-
-  if (!req.session.giftCart) {
-    req.session.giftCart = [];
-  }
-
-  const existing = req.session.giftCart.find(i => i.id == item_id);
-
-  if (existing) {
-    existing.qty++;
-  } else {
-    req.session.giftCart.push({
-      id: item_id,
-      name: item.Name_of_Item,
-      price: item.Price_of_Item,
-      qty: 1
-    });
-  }
-
-  res.redirect("/gift-order");
-}));
-
-app.post("/gift-order/checkout", requireLogin, asyncHandler(async (req, res) => {
-  const cart = req.session.giftCart || [];
-
-  if (cart.length === 0) {
-    setFlash(req, "Cart is empty.");
-    return res.redirect("/gift-order");
-  }
-
-  const [result] = await pool.query(
-    "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (NOW(), ?)",
-    [req.session.user.employeeId]
-  );
-
-  const saleId = result.insertId;
-
-  for (let item of cart) {
-    const total = item.price * item.qty;
-
-    await pool.query(
-      `INSERT INTO Gift_Shop_Sale_Line
-       (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
-       VALUES (?, ?, ?, ?, ?)`,
-      [saleId, item.id, item.qty, item.price, total]
+  app.post("/gift-order/add-item", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const { item_id } = req.body;
+    const [[item]] = await pool.query(
+      "SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item, Stock_Quantity FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?",
+      [item_id]
     );
-  }
 
-  req.session.giftCart = [];
+    if (!item || item.Stock_Quantity <= 0) {
+      setFlash(req, "Item is out of stock.");
+      return res.redirect("/gift-order");
+    }
 
-  setFlash(req, "Gift order completed!");
-  res.redirect("/gift-order");
-}));
+    if (!req.session.giftCart) req.session.giftCart = [];
+    const existing = req.session.giftCart.find(i => i.id == item_id);
+    if (existing) {
+      if (existing.qty >= item.Stock_Quantity) {
+        setFlash(req, `Only ${item.Stock_Quantity} units available for "${escapeHtml(item.Name_of_Item)}".`);
+        return res.redirect("/gift-order");
+      }
+      existing.qty++;
+    } else {
+      req.session.giftCart.push({ id: item_id, name: item.Name_of_Item, price: parseFloat(item.Price_of_Item), qty: 1 });
+    }
+    res.redirect("/gift-order");
+  }));
+
+  app.post("/gift-order/remove-item", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    req.session.giftCart = (req.session.giftCart || []).filter(i => i.id != req.body.item_id);
+    res.redirect("/gift-order");
+  }));
+
+  app.post("/gift-order/clear", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    req.session.giftCart = [];
+    res.redirect("/gift-order");
+  }));
+
+  app.post("/gift-order/checkout", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const cart = req.session.giftCart || [];
+    if (cart.length === 0) {
+      setFlash(req, "Cart is empty.");
+      return res.redirect("/gift-order");
+    }
+
+    let employeeId = req.session.user.employeeId;
+    if (!employeeId) {
+      const [empRows] = await pool.query("SELECT Employee_ID FROM Employee WHERE Email = ?", [req.session.user.email]);
+      employeeId = empRows[0]?.Employee_ID || null;
+    }
+    if (!employeeId) {
+      setFlash(req, "Employee record not found. Please contact a supervisor.");
+      return res.redirect("/gift-order");
+    }
+
+    for (const item of cart) {
+      const [[stock]] = await pool.query("SELECT Stock_Quantity, Name_of_Item FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?", [item.id]);
+      if (!stock || stock.Stock_Quantity < item.qty) {
+        setFlash(req, `Not enough stock for "${stock?.Name_of_Item || 'item'}". Available: ${stock?.Stock_Quantity ?? 0}.`);
+        return res.redirect("/gift-order/checkout");
+      }
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
+      [employeeId]
+    );
+    const saleId = result.insertId;
+
+    for (const item of cart) {
+      const total = item.price * item.qty;
+      await pool.query(
+        `INSERT INTO Gift_Shop_Sale_Line (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale) VALUES (?, ?, ?, ?, ?)`,
+        [saleId, item.id, item.qty, item.price, total]
+      );
+    }
+
+    const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    req.session.giftCart = [];
+    setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+    res.redirect("/gift-order");
+  }));
 
 }
 

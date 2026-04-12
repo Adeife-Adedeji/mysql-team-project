@@ -443,136 +443,207 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food-sale-line");
   }));
 
-  app.get("/order", requireLogin, asyncHandler(async (req, res) => {
+  app.get("/order", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price, Stock_Quantity FROM Food");
+    const cart = req.session.cart || [];
+    const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
 
-  const [foods] = await pool.query("SELECT * FROM Food");
-  const cart = req.session.cart || [];
+    const menuRows = foods.map(food => {
+      const stockLabel = food.Stock_Quantity === 0
+        ? '<span style="color:#c0392b;font-size:0.85rem;">Out of Stock</span>'
+        : food.Stock_Quantity <= 5
+          ? `<span style="color:#e67e22;font-size:0.85rem;">${food.Stock_Quantity} left</span>`
+          : `<span style="color:#27ae60;font-size:0.85rem;">In Stock</span>`;
+      return `
+        <tr>
+          <td>${escapeHtml(food.Food_Name)}</td>
+          <td>$${Number(food.Food_Price).toFixed(2)}</td>
+          <td>${stockLabel}</td>
+          <td>${food.Stock_Quantity > 0
+            ? `<form method="post" action="/order/add-item" class="inline-form">
+                <input type="hidden" name="food_id" value="${food.Food_ID}">
+                <button class="button" type="submit" style="padding:0.3rem 0.8rem;">Add</button>
+               </form>`
+            : '<span style="color:#aaa;">Unavailable</span>'
+          }</td>
+        </tr>`;
+    }).join('');
 
-  res.send(renderPage({
-    title: "Create Order",
-    user: req.session.user,
-    content: ` 
-<h1>Menu</h1>
-${foods.map(food => `
-<div>
-${food.Food_Name} - $${food.Food_Price}
-<form method="post" action="/order/add-item">
-<input type="hidden" name="food_id" value="${food.Food_ID}">
-<button>Add</button>
-</form> 
-</div>
-`).join("")}
+    const cartRows = cart.map(item => `
+      <tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>$${Number(item.price).toFixed(2)}</td>
+        <td>${item.qty}</td>
+        <td>$${(item.price * item.qty).toFixed(2)}</td>
+        <td>
+          <form method="post" action="/order/remove-item" class="inline-form">
+            <input type="hidden" name="food_id" value="${item.id}">
+            <button class="link-button danger" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>`).join('');
 
-<h2>Cart</h2>
-${cart.map(item => `
-<div>${item.name} x ${item.qty}</div>
-`).join("")}
-
-<form method="get" action="/order/checkout">
-<button>Checkout</button>
-</form>
-`
+    res.send(renderPage({
+      title: "New Café Order",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <h1>New Café Order</h1>
+        ${renderFlash(req)}
+        <h2>Menu</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+          <tbody>${menuRows || '<tr><td colspan="4">No food items available.</td></tr>'}</tbody>
+        </table>
+      </section>
+      <section class="card narrow">
+        <h2>Cart</h2>
+        ${cart.length === 0
+          ? '<p style="color:#888;">No items in cart yet.</p>'
+          : `<table>
+              <thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
+              <tbody>${cartRows}</tbody>
+              <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${cartTotal.toFixed(2)}</strong></td><td></td></tr></tfoot>
+             </table>
+             <div style="display:flex;gap:1rem;margin-top:1rem;">
+               <a class="button" href="/order/checkout">Checkout</a>
+               <form method="post" action="/order/clear">
+                 <button class="button button-secondary" type="submit">Clear Cart</button>
+               </form>
+             </div>`
+        }
+      </section>`
+    }));
   }));
-}));
 
-app.get("/order/checkout", requireLogin, asyncHandler(async (req, res) => {
-  const cart = req.session.cart || [];
+  app.get("/order/checkout", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const cart = req.session.cart || [];
+    if (cart.length === 0) {
+      setFlash(req, "Cart is empty.");
+      return res.redirect("/order");
+    }
 
-  if (cart.length === 0) {
-    setFlash(req, "Cart is empty.");
-    return res.redirect("/order");
-  }
+    let total = 0;
+    const itemRows = cart.map(item => {
+      const subtotal = item.price * item.qty;
+      total += subtotal;
+      return `<tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${item.qty}</td>
+        <td>$${Number(item.price).toFixed(2)}</td>
+        <td>$${subtotal.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
 
-  let total = 0;
-
-  const itemsHtml = cart.map(item => {
-    const subtotal = item.price * item.qty;
-    total += subtotal;
-
-    return `
-      <div style="display:flex; justify-content:space-between; margin:10px 0;">
-        <span>${item.name} x ${item.qty}</span>
-        <span>$${subtotal.toFixed(2)}</span>
-      </div>
-    `;
-  }).join("");
-
-  res.send(renderPage({
-    title: "Checkout",
-    user: req.session.user,
-    content: `
-      <h1>Order Summary</h1>
-
-      ${itemsHtml}
-
-      <hr>
-      <h2>Total: $${total.toFixed(2)}</h2>
-
-      <form method="post" action="/order/checkout">
-        <button class="button">Confirm Order</button>
-      </form>
-
-      <a href="/order">⬅ Back to cart</a>
-    `
+    res.send(renderPage({
+      title: "Café Checkout",
+      user: req.session.user,
+      content: `
+      <section class="card narrow">
+        <h1>Order Summary</h1>
+        ${renderFlash(req)}
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+          <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${total.toFixed(2)}</strong></td></tr></tfoot>
+        </table>
+        <div style="display:flex;gap:1rem;margin-top:1.5rem;">
+          <form method="post" action="/order/checkout">
+            <button class="button" type="submit">Confirm Order</button>
+          </form>
+          <a class="button button-secondary" href="/order">Back to Cart</a>
+        </div>
+      </section>`
+    }));
   }));
-}));
 
-app.post("/order/add-item", asyncHandler(async (req, res) => {
-  const { food_id } = req.body;
-
-  const [[food]] = await pool.query(
-    "SELECT * FROM Food WHERE Food_ID = ?",
-    [food_id]
-  );
-
-  if (!req.session.cart) {
-    req.session.cart = [];
-  }
-
-  const existing = req.session.cart.find(item => item.id == food_id);
-
-  if (existing) {
-    existing.qty++;
-  } else {
-    req.session.cart.push({
-      id: food_id,
-      name: food.Food_Name,
-      price: food.Food_Price,
-      qty: 1
-    });
-  }
-
-  res.redirect("/order");
-}));
-
-app.post("/order/checkout", asyncHandler(async (req, res) => {
-  const cart = req.session.cart || [];
-
-  if (cart.length === 0) {
-    setFlash(req, "Cart is empty.");
-    return res.redirect("/order");
-  }
-
-  const [result] = await pool.query(
-    "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (NOW(), ?)",
-    [req.session.user.employeeId]
-  );
-
-  const saleId = result.insertId;
-
-  for (let item of cart) {
-    await pool.query(
-      `INSERT INTO Food_Sale_Line
-       (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold)
-       VALUES (?, ?, ?, ?)`,
-      [saleId, item.id, item.qty, item.price]
+  app.post("/order/add-item", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const { food_id } = req.body;
+    const [[food]] = await pool.query(
+      "SELECT Food_ID, Food_Name, Food_Price, Stock_Quantity FROM Food WHERE Food_ID = ?",
+      [food_id]
     );
-  }
 
-  req.session.cart = [];
+    if (!food || food.Stock_Quantity <= 0) {
+      setFlash(req, "Item is out of stock.");
+      return res.redirect("/order");
+    }
 
-  setFlash(req, "Order completed!");
-  res.redirect("/order");
-}));
+    if (!req.session.cart) req.session.cart = [];
+    const existing = req.session.cart.find(item => item.id == food_id);
+    if (existing) {
+      if (existing.qty >= food.Stock_Quantity) {
+        setFlash(req, `Only ${food.Stock_Quantity} portions available for "${escapeHtml(food.Food_Name)}".`);
+        return res.redirect("/order");
+      }
+      existing.qty++;
+    } else {
+      req.session.cart.push({ id: food_id, name: food.Food_Name, price: parseFloat(food.Food_Price), qty: 1 });
+    }
+    res.redirect("/order");
+  }));
+
+  app.post("/order/remove-item", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    req.session.cart = (req.session.cart || []).filter(item => item.id != req.body.food_id);
+    res.redirect("/order");
+  }));
+
+  app.post("/order/clear", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    req.session.cart = [];
+    res.redirect("/order");
+  }));
+
+  app.post("/order/checkout", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const cart = req.session.cart || [];
+    if (cart.length === 0) {
+      setFlash(req, "Cart is empty.");
+      return res.redirect("/order");
+    }
+
+    let employeeId = req.session.user.employeeId;
+    if (!employeeId) {
+      const [empRows] = await pool.query("SELECT Employee_ID FROM Employee WHERE Email = ?", [req.session.user.email]);
+      employeeId = empRows[0]?.Employee_ID || null;
+    }
+    if (!employeeId) {
+      setFlash(req, "Employee record not found. Please contact a supervisor.");
+      return res.redirect("/order");
+    }
+
+    for (const item of cart) {
+      const [[stock]] = await pool.query("SELECT Stock_Quantity, Food_Name FROM Food WHERE Food_ID = ?", [item.id]);
+      if (!stock || stock.Stock_Quantity < item.qty) {
+        setFlash(req, `Not enough stock for "${stock?.Food_Name || 'item'}". Available: ${stock?.Stock_Quantity ?? 0}.`);
+        return res.redirect("/order/checkout");
+      }
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
+      [employeeId]
+    );
+    const saleId = result.insertId;
+
+    for (const item of cart) {
+      try {
+        await pool.query(
+          `INSERT INTO Food_Sale_Line (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold) VALUES (?, ?, ?, ?)`,
+          [saleId, item.id, item.qty, item.price]
+        );
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+          return res.redirect("/order/checkout");
+        }
+        throw err;
+      }
+    }
+
+    const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    req.session.cart = [];
+    setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+    res.redirect("/order");
+  }));
 }
 module.exports = { registerCafeRoutes };

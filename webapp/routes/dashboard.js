@@ -95,9 +95,8 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Sales Register</h2>
             <div class="button-row dashboard-actions">
-              <a class="button" href="/add-sale">New Sale</a>
-              <a class="button" href="/gift-order">Create Gift Order</a>
-              <a class="button button-secondary" href="/add-sale-line">Add Items to Sale</a>
+              <a class="button" href="/gift-order">New Gift Shop Order</a>
+              <a class="button button-secondary" href="/add-sale">Manage Sales</a>
             </div>
           </section>
           <section class="dashboard-section">
@@ -131,9 +130,8 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Orders</h2>
             <div class="button-row dashboard-actions">
-              <a class="button" href="/add-food-sale">New Café Sale</a>
-              <a class="button" href="/order">Create Order</a>
-              <a class="button button-secondary" href="/add-food-sale-line">Add Items to Order</a>
+              <a class="button" href="/order">New Café Order</a>
+              <a class="button button-secondary" href="/add-food-sale">Manage Orders</a>
             </div>
           </section>
           <section class="dashboard-section">
@@ -175,10 +173,10 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Retail and Cafe</h2>
             <div class="button-row dashboard-actions">
-              <a class="button" href="/add-sale">Create Gift Shop Sale</a>
-              <a class="button" href="/add-sale-line">Add Items to Gift Shop Sale</a>
-              <a class="button" href="/add-food-sale">Create Cafe Sale</a>
-              <a class="button" href="/add-food-sale-line">Add Food to Cafe Sale</a>
+              <a class="button" href="/gift-order">New Gift Shop Order</a>
+              <a class="button button-secondary" href="/add-sale">Manage Gift Shop Sales</a>
+              <a class="button" href="/order">New Café Order</a>
+              <a class="button button-secondary" href="/add-food-sale">Manage Café Sales</a>
               <a class="button button-secondary" href="/queries">Operational Queries</a>
             </div>
           </section>
