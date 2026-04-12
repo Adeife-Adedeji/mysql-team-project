@@ -26,6 +26,35 @@ function registerAdmissionRoutes(app, { pool }) {
       LIMIT 30
     `);
 
+    // Daily ticket summary — totals and breakdown by type for today
+    const [[todayTotals]] = await pool.query(`
+      SELECT COUNT(*) AS total_tickets, COALESCE(SUM(tl.Quantity * tl.Price_per_ticket), 0) AS total_revenue
+      FROM ticket_line tl
+      JOIN Ticket t ON tl.Ticket_ID = t.Ticket_ID
+      WHERE t.Purchase_Date = CURDATE()
+    `);
+    const [todayBreakdown] = await pool.query(`
+      SELECT tl.Ticket_Type, SUM(tl.Quantity) AS total_qty,
+             SUM(tl.Quantity * tl.Price_per_ticket) AS revenue
+      FROM ticket_line tl
+      JOIN Ticket t ON tl.Ticket_ID = t.Ticket_ID
+      WHERE t.Purchase_Date = CURDATE()
+      GROUP BY tl.Ticket_Type
+      ORDER BY revenue DESC
+    `);
+
+    // Check membership by email if query param provided
+    let memberCheckResult = null;
+    const checkEmail = req.query.check_email?.trim();
+    if (checkEmail) {
+      const [rows] = await pool.query(
+        `SELECT Membership_ID, First_Name, Last_Name, Email, Phone_Number, Date_Joined, Date_Exited
+         FROM Membership WHERE Email = ?`,
+        [checkEmail]
+      );
+      memberCheckResult = rows[0] || null;
+    }
+
     const ticketRows = recentTickets.map((row) => `
       <tr>
         <td>#${row.Ticket_ID}</td>
@@ -44,6 +73,61 @@ function registerAdmissionRoutes(app, { pool }) {
       content: `
       <section class="card narrow">
         <p class="eyebrow">Admissions Desk</p>
+        <h2>Today's Ticket Summary</h2>
+        <div style="display:flex; gap:2rem; margin-bottom:1rem;">
+          <div style="background:#f0f7ff; padding:1rem 1.5rem; border-radius:8px; text-align:center;">
+            <div style="font-size:2rem; font-weight:bold;">${todayTotals.total_tickets}</div>
+            <div style="color:#555; font-size:0.9rem;">Tickets Sold Today</div>
+          </div>
+          <div style="background:#f0fff4; padding:1rem 1.5rem; border-radius:8px; text-align:center;">
+            <div style="font-size:2rem; font-weight:bold;">$${Number(todayTotals.total_revenue).toFixed(2)}</div>
+            <div style="color:#555; font-size:0.9rem;">Revenue Today</div>
+          </div>
+        </div>
+        ${todayBreakdown.length ? `
+        <table>
+          <thead><tr><th>Ticket Type</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+          <tbody>
+            ${todayBreakdown.map(r => `
+              <tr>
+                <td>${escapeHtml(r.Ticket_Type)}</td>
+                <td>${r.total_qty}</td>
+                <td>$${Number(r.revenue).toFixed(2)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>` : `<p style="color:#888;">No tickets sold today yet.</p>`}
+      </section>
+
+      <section class="card narrow">
+        <h2>Check Membership</h2>
+        <form method="get" action="/sell-ticket" class="form-grid" style="margin-bottom:1rem;">
+          <label>Member Email
+            <input type="email" name="check_email" value="${escapeHtml(checkEmail || "")}" placeholder="e.g. member@email.com">
+          </label>
+          <button class="button" type="submit">Check</button>
+        </form>
+        ${checkEmail ? `
+          ${memberCheckResult ? (() => {
+            const expired = memberCheckResult.Date_Exited && new Date(memberCheckResult.Date_Exited) < new Date();
+            const statusColor = expired ? "#c0392b" : "#27ae60";
+            const statusLabel = expired ? "Expired" : "Active";
+            return `
+              <div style="border:1px solid #ddd; border-radius:8px; padding:1rem;">
+                <p><strong>Name:</strong> ${escapeHtml(memberCheckResult.First_Name)} ${escapeHtml(memberCheckResult.Last_Name)}</p>
+                <p><strong>Email:</strong> ${escapeHtml(memberCheckResult.Email || "—")}</p>
+                <p><strong>Phone:</strong> ${escapeHtml(memberCheckResult.Phone_Number || "—")}</p>
+                <p><strong>Member Since:</strong> ${formatDisplayDate(memberCheckResult.Date_Joined)}</p>
+                <p><strong>Status:</strong> <span style="color:${statusColor}; font-weight:bold;">${statusLabel}</span>
+                  ${expired ? `(expired ${formatDisplayDate(memberCheckResult.Date_Exited)})` : ""}
+                </p>
+              </div>`;
+          })() : `<p style="color:#c0392b;">No membership found for <strong>${escapeHtml(checkEmail)}</strong>.</p>`}
+        ` : ""}
+      </section>
+
+      <section class="card narrow">
+        <p class="eyebrow">Admissions Desk</p>
         <h1>Sell Admission Tickets</h1>
         ${renderFlash(req)}
         <form method="post" action="/sell-ticket" class="form-grid">
@@ -51,20 +135,24 @@ function registerAdmissionRoutes(app, { pool }) {
             <input type="date" name="visit_date" required>
           </label>
           <label>Ticket Type
-            <select name="ticket_type" required>
+            <select name="ticket_type" required onchange="
+              const prices = { Adult: '20.00', Child: '10.00', Senior: '15.00', Student: '12.00', Member: '0.00' };
+              document.getElementById('ticket-price').value = prices[this.value] || '';
+            ">
               <option value="">— Select —</option>
-              <option value="Adult">Adult</option>
-              <option value="Child">Child (under 12)</option>
-              <option value="Senior">Senior (65+)</option>
-              <option value="Student">Student (with ID)</option>
-              <option value="Member">Member</option>
+              <option value="Adult">Adult ($20.00)</option>
+              <option value="Child">Child under 12 ($10.00)</option>
+              <option value="Senior">Senior 65+ ($15.00)</option>
+              <option value="Student">Student with ID ($12.00)</option>
+              <option value="Member">Member ($0.00)</option>
             </select>
           </label>
           <label>Quantity
             <input type="number" name="quantity" min="1" value="1" required>
           </label>
           <label>Price per Ticket ($)
-            <input type="number" step="0.01" min="0" name="price" placeholder="e.g. 20.00" required>
+            <input type="number" step="0.01" id="ticket-price" name="price" readonly
+              style="background:#f5f5f5; cursor:not-allowed;" placeholder="Auto-filled by ticket type">
           </label>
           <label>Exhibition
             <select name="exhibition_id">
