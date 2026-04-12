@@ -443,6 +443,136 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/add-food-sale-line");
   }));
 
-}
+  app.get("/order", requireLogin, asyncHandler(async (req, res) => {
 
+  const [foods] = await pool.query("SELECT * FROM Food");
+  const cart = req.session.cart || [];
+
+  res.send(renderPage({
+    title: "Create Order",
+    user: req.session.user,
+    content: ` 
+<h1>Menu</h1>
+${foods.map(food => `
+<div>
+${food.Food_Name} - $${food.Food_Price}
+<form method="post" action="/order/add-item">
+<input type="hidden" name="food_id" value="${food.Food_ID}">
+<button>Add</button>
+</form> 
+</div>
+`).join("")}
+
+<h2>Cart</h2>
+${cart.map(item => `
+<div>${item.name} x ${item.qty}</div>
+`).join("")}
+
+<form method="get" action="/order/checkout">
+<button>Checkout</button>
+</form>
+`
+  }));
+}));
+
+app.get("/order/checkout", requireLogin, asyncHandler(async (req, res) => {
+  const cart = req.session.cart || [];
+
+  if (cart.length === 0) {
+    setFlash(req, "Cart is empty.");
+    return res.redirect("/order");
+  }
+
+  let total = 0;
+
+  const itemsHtml = cart.map(item => {
+    const subtotal = item.price * item.qty;
+    total += subtotal;
+
+    return `
+      <div style="display:flex; justify-content:space-between; margin:10px 0;">
+        <span>${item.name} x ${item.qty}</span>
+        <span>$${subtotal.toFixed(2)}</span>
+      </div>
+    `;
+  }).join("");
+
+  res.send(renderPage({
+    title: "Checkout",
+    user: req.session.user,
+    content: `
+      <h1>Order Summary</h1>
+
+      ${itemsHtml}
+
+      <hr>
+      <h2>Total: $${total.toFixed(2)}</h2>
+
+      <form method="post" action="/order/checkout">
+        <button class="button">Confirm Order</button>
+      </form>
+
+      <a href="/order">⬅ Back to cart</a>
+    `
+  }));
+}));
+
+app.post("/order/add-item", asyncHandler(async (req, res) => {
+  const { food_id } = req.body;
+
+  const [[food]] = await pool.query(
+    "SELECT * FROM Food WHERE Food_ID = ?",
+    [food_id]
+  );
+
+  if (!req.session.cart) {
+    req.session.cart = [];
+  }
+
+  const existing = req.session.cart.find(item => item.id == food_id);
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    req.session.cart.push({
+      id: food_id,
+      name: food.Food_Name,
+      price: food.Food_Price,
+      qty: 1
+    });
+  }
+
+  res.redirect("/order");
+}));
+
+app.post("/order/checkout", asyncHandler(async (req, res) => {
+  const cart = req.session.cart || [];
+
+  if (cart.length === 0) {
+    setFlash(req, "Cart is empty.");
+    return res.redirect("/order");
+  }
+
+  const [result] = await pool.query(
+    "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (NOW(), ?)",
+    [req.session.user.employeeId]
+  );
+
+  const saleId = result.insertId;
+
+  for (let item of cart) {
+    await pool.query(
+      `INSERT INTO Food_Sale_Line
+       (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold)
+       VALUES (?, ?, ?, ?)`,
+      [saleId, item.id, item.qty, item.price]
+    );
+  }
+
+  req.session.cart = [];
+
+  setFlash(req, "Order completed!");
+  res.redirect("/order");
+}));
+}
 module.exports = { registerCafeRoutes };

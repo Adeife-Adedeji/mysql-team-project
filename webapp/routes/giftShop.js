@@ -461,6 +461,141 @@ function registerGiftShopRoutes(app, { pool }) {
     setFlash(req, "Item removed.");
     res.redirect("/add-sale-line");
   }));
+  app.get("/gift-order", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+
+  const [items] = await pool.query("SELECT * FROM Gift_Shop_Item");
+  const cart = req.session.giftCart || [];
+
+  res.send(renderPage({
+    title: "Gift Shop Order",
+    user: req.session.user,
+    content: `
+<h1>Gift Shop</h1>
+
+${items.map(item => `
+<div>
+  ${item.Name_of_Item} - $${item.Price_of_Item}
+  <form method="post" action="/gift-order/add-item">
+    <input type="hidden" name="item_id" value="${item.Gift_Shop_Item_ID}">
+    <button>Add</button>
+  </form>
+</div>
+`).join("")}
+
+<h2>Cart</h2>
+${cart.map(item => `
+<div>${item.name} x ${item.qty}</div>
+`).join("")}
+
+<form method="get" action="/gift-order/checkout">
+<button>Checkout</button>
+</form>
+`
+  }));
+}));
+
+app.get("/gift-order/checkout", requireLogin, asyncHandler(async (req, res) => {
+  const cart = req.session.giftCart || [];
+
+  if (cart.length === 0) {
+    setFlash(req, "Cart is empty.");
+    return res.redirect("/gift-order");
+  }
+
+  let total = 0;
+
+  const itemsHtml = cart.map(item => {
+    const subtotal = item.price * item.qty;
+    total += subtotal;
+
+    return `
+      <div style="display:flex; justify-content:space-between; margin:10px 0;">
+        <span>${item.name} x ${item.qty}</span>
+        <span>$${subtotal.toFixed(2)}</span>
+      </div>
+    `;
+  }).join("");
+
+  res.send(renderPage({
+    title: "Gift Checkout",
+    user: req.session.user,
+    content: `
+      <h1>Gift Order Summary</h1>
+
+      ${itemsHtml}
+
+      <hr>
+      <h2>Total: $${total.toFixed(2)}</h2>
+
+      <form method="post" action="/gift-order/checkout">
+        <button class="button">Confirm Order</button>
+      </form>
+
+      <a href="/gift-order">⬅ Back to cart</a>
+    `
+  }));
+}));
+
+app.post("/gift-order/add-item", requireLogin, asyncHandler(async (req, res) => {
+  const { item_id } = req.body;
+
+  const [[item]] = await pool.query(
+    "SELECT * FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?",
+    [item_id]
+  );
+
+  if (!req.session.giftCart) {
+    req.session.giftCart = [];
+  }
+
+  const existing = req.session.giftCart.find(i => i.id == item_id);
+
+  if (existing) {
+    existing.qty++;
+  } else {
+    req.session.giftCart.push({
+      id: item_id,
+      name: item.Name_of_Item,
+      price: item.Price_of_Item,
+      qty: 1
+    });
+  }
+
+  res.redirect("/gift-order");
+}));
+
+app.post("/gift-order/checkout", requireLogin, asyncHandler(async (req, res) => {
+  const cart = req.session.giftCart || [];
+
+  if (cart.length === 0) {
+    setFlash(req, "Cart is empty.");
+    return res.redirect("/gift-order");
+  }
+
+  const [result] = await pool.query(
+    "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (NOW(), ?)",
+    [req.session.user.employeeId]
+  );
+
+  const saleId = result.insertId;
+
+  for (let item of cart) {
+    const total = item.price * item.qty;
+
+    await pool.query(
+      `INSERT INTO Gift_Shop_Sale_Line
+       (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
+       VALUES (?, ?, ?, ?, ?)`,
+      [saleId, item.id, item.qty, item.price, total]
+    );
+  }
+
+  req.session.giftCart = [];
+
+  setFlash(req, "Gift order completed!");
+  res.redirect("/gift-order");
+}));
+
 }
 
 module.exports = { registerGiftShopRoutes };
