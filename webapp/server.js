@@ -34,6 +34,23 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err);
+
+  if (err && err.sqlState === "45000") {
+    pool.query(
+      `INSERT INTO trigger_violation_log (route_path, user_email, message)
+       VALUES (?, ?, ?)`,
+      [
+        req.path || null,
+        req.session?.user?.email || null,
+        err.sqlMessage || err.message || "Trigger violation.",
+      ],
+    ).catch((loggingError) => {
+      if (loggingError && loggingError.code !== "ER_NO_SUCH_TABLE") {
+        console.error(loggingError);
+      }
+    });
+  }
+
   setFlash(
     req,
     err && (err.sqlMessage || err.message) ? (err.sqlMessage || err.message) : "Unexpected error.",
