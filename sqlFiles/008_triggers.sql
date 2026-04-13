@@ -358,4 +358,116 @@ BEGIN
     END IF;
 END$$
 
+-- ================================================================
+-- BEFORE UPDATE triggers (match the INSERT versions above)
+-- Without these, editing a record bypasses the business rules.
+-- ================================================================
+
+-- Trigger: block updating an artist to a duplicate name+birthdate
+DROP TRIGGER IF EXISTS trigger_check_artist_exists_update$$
+CREATE TRIGGER trigger_check_artist_exists_update
+BEFORE UPDATE ON Artist
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM Artist
+        WHERE Artist_Name = NEW.Artist_Name
+          AND Date_of_Birth = NEW.Date_of_Birth
+          AND Artist_ID != OLD.Artist_ID
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Artist already exists in the database';
+    END IF;
+END$$
+
+-- Trigger: validate artist birth and death dates on update
+DROP TRIGGER IF EXISTS trigger_check_artist_dates_update$$
+CREATE TRIGGER trigger_check_artist_dates_update
+BEFORE UPDATE ON Artist
+FOR EACH ROW
+BEGIN
+    IF NEW.Date_of_Death IS NOT NULL AND NEW.Date_of_Death < NEW.Date_of_Birth THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Date of death cannot be before date of birth';
+    END IF;
+END$$
+
+-- Trigger: prevent overlapping shifts on update
+DROP TRIGGER IF EXISTS trigger_check_employee_schedule_update$$
+CREATE TRIGGER trigger_check_employee_schedule_update
+BEFORE UPDATE ON Schedule
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM Schedule
+        WHERE Employee_ID = NEW.Employee_ID
+          AND Shift_Date = NEW.Shift_Date
+          AND Schedule_ID != OLD.Schedule_ID
+          AND (Start_Time < NEW.End_Time AND End_Time > NEW.Start_Time)
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Employee has an overlapping shift';
+    END IF;
+END$$
+
+-- Trigger: block ticket update if membership is expired
+DROP TRIGGER IF EXISTS trigger_check_membership_validity_update$$
+CREATE TRIGGER trigger_check_membership_validity_update
+BEFORE UPDATE ON Ticket
+FOR EACH ROW
+BEGIN
+    IF NEW.Membership_ID IS NOT NULL AND
+        EXISTS (
+            SELECT 1 FROM Membership
+            WHERE Membership_ID = NEW.Membership_ID
+              AND Date_Exited IS NOT NULL
+              AND Date_Exited < NEW.Visit_Date
+        )
+    THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Membership has expired';
+    END IF;
+END$$
+
+-- Trigger: alert manager when salary is updated above supervisor
+DROP TRIGGER IF EXISTS trigger_salary_violation_update$$
+CREATE TRIGGER trigger_salary_violation_update
+BEFORE UPDATE ON Employee
+FOR EACH ROW
+BEGIN
+    IF NEW.Salary IS NOT NULL AND NEW.Supervisor_ID IS NOT NULL THEN
+        IF NEW.Salary > (
+            SELECT Salary FROM Employee
+            WHERE Employee_ID = NEW.Supervisor_ID
+        ) THEN
+            INSERT INTO manager_notifications (source_table, source_id, message)
+            VALUES (
+                'Employee',
+                NEW.Supervisor_ID,
+                CONCAT('Salary violation: ', NEW.First_Name, ' ', NEW.Last_Name,
+                       ' has a higher salary than their supervisor (Employee_ID: ', NEW.Supervisor_ID, ')')
+            );
+        END IF;
+    END IF;
+END$$
+
+-- Trigger: block assigning loaned artwork to exhibition on update
+DROP TRIGGER IF EXISTS trigger_check_artwork_on_loan_update$$
+CREATE TRIGGER trigger_check_artwork_on_loan_update
+BEFORE UPDATE ON Exhibition_Artwork
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM Artwork_Loan
+        WHERE Artwork_ID = NEW.Artwork_ID
+          AND Loan_Type  = 'Outgoing'
+          AND Status     = 'Active'
+          AND CURDATE() BETWEEN Start_Date AND End_Date
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot assign artwork to exhibition: it is currently on outgoing loan to another institution';
+    END IF;
+END$$
+
 DELIMITER ;

@@ -144,8 +144,16 @@ function registerCafeRoutes(app, { pool }) {
   app.post("/delete-food", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.food_id;
 
-    await pool.query("DELETE FROM Food WHERE Food_ID = ?", [idToDelete]);
-    setFlash(req, "Café item deleted.");
+    try {
+      await pool.query("DELETE FROM Food WHERE Food_ID = ?", [idToDelete]);
+      setFlash(req, "Café item deleted.");
+    } catch (err) {
+      if (err.code === "ER_ROW_IS_REFERENCED_2") {
+        setFlash(req, "Cannot delete: this item has existing sale records.");
+      } else {
+        throw err;
+      }
+    }
     res.redirect("/add-food");
   }));
 
@@ -629,31 +637,39 @@ function registerCafeRoutes(app, { pool }) {
       }
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
-      [employeeId]
-    );
-    const saleId = result.insertId;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    for (const item of cart) {
-      try {
-        await pool.query(
+      const [result] = await connection.query(
+        "INSERT INTO Food_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
+        [employeeId]
+      );
+      const saleId = result.insertId;
+
+      for (const item of cart) {
+        await connection.query(
           `INSERT INTO Food_Sale_Line (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold) VALUES (?, ?, ?, ?)`,
           [saleId, item.id, item.qty, item.price]
         );
-      } catch (err) {
-        if (err.sqlState === "45000") {
-          await logTriggerViolation(pool, req, err.sqlMessage);
-          setFlash(req, err.sqlMessage);
-          return res.redirect("/order/checkout");
-        }
-        throw err;
       }
-    }
 
-    const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-    req.session.cart = [];
-    setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+      await connection.commit();
+
+      const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      req.session.cart = [];
+      setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+    } catch (error) {
+      await connection.rollback();
+      if (error.sqlState === "45000") {
+        await logTriggerViolation(pool, req, error.sqlMessage);
+        setFlash(req, error.sqlMessage);
+        return res.redirect("/order/checkout");
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
     res.redirect("/order");
   }));
 }

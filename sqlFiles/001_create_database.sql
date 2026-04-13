@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS Gift_Shop_Item (
 CREATE TABLE IF NOT EXISTS Food (
     Food_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Food_Name VARCHAR(30),
+    Type VARCHAR(30),
     Food_Price DECIMAL(4, 2) NOT NULL,
     Created_By VARCHAR(30),
     Created_At DATE,
@@ -142,7 +143,7 @@ CREATE TABLE IF NOT EXISTS Ticket (
     Last_Name VARCHAR(30),
     First_Name VARCHAR(30),
     Phone_number VARCHAR(10),
-    Email VARCHAR(50) UNIQUE,
+    Email VARCHAR(50),
     Payment_method VARCHAR(30),
     Membership_ID INT NULL,
     Created_by VARCHAR(30),

@@ -8,7 +8,7 @@ ALTER TABLE users
 ALTER TABLE users
     ADD CONSTRAINT chk_users_role
         CHECK (role IN ('user', 'employee', 'supervisor', 'admissions', 'giftshop', 'cafe',
-        'janitor', 'security', 'maintenace'));
+        'janitor', 'security', 'maintenance'));
 
 ALTER TABLE users
     ADD CONSTRAINT fk_users_employee

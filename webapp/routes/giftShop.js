@@ -147,8 +147,16 @@ function registerGiftShopRoutes(app, { pool }) {
       return res.redirect("/add-item");
     }
 
-    await pool.query("DELETE FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?", [idToDelete]);
-    setFlash(req, "Item removed.");
+    try {
+      await pool.query("DELETE FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ?", [idToDelete]);
+      setFlash(req, "Item removed.");
+    } catch (err) {
+      if (err.code === "ER_ROW_IS_REFERENCED_2") {
+        setFlash(req, "Cannot delete: this item has existing sale records.");
+      } else {
+        throw err;
+      }
+    }
     res.redirect("/add-item");
   }));
 
@@ -636,23 +644,35 @@ function registerGiftShopRoutes(app, { pool }) {
       }
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
-      [employeeId]
-    );
-    const saleId = result.insertId;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    for (const item of cart) {
-      const total = item.price * item.qty;
-      await pool.query(
-        `INSERT INTO Gift_Shop_Sale_Line (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale) VALUES (?, ?, ?, ?, ?)`,
-        [saleId, item.id, item.qty, item.price, total]
+      const [result] = await connection.query(
+        "INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID) VALUES (CURDATE(), ?)",
+        [employeeId]
       );
-    }
+      const saleId = result.insertId;
 
-    const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-    req.session.giftCart = [];
-    setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+      for (const item of cart) {
+        const total = item.price * item.qty;
+        await connection.query(
+          `INSERT INTO Gift_Shop_Sale_Line (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale) VALUES (?, ?, ?, ?, ?)`,
+          [saleId, item.id, item.qty, item.price, total]
+        );
+      }
+
+      await connection.commit();
+
+      const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      req.session.giftCart = [];
+      setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
     res.redirect("/gift-order");
   }));
 

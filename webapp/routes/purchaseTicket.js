@@ -351,7 +351,9 @@ app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]
       req.session.ticketCart = [];
     }
 
-    const existing = req.session.ticketCart.find(t => t.id == ticket_type_id);
+    const exhibitionId = req.body.exhibition_id || null;
+
+    const existing = req.session.ticketCart.find(t => t.id == ticket_type_id && t.exhibitionId == exhibitionId);
     if (existing) {
       existing.qty += Number(quantity);
     } else {
@@ -359,7 +361,8 @@ app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]
         id: ticket_type_id,
         name: ticket.Name,
         price: ticket.Price,
-        qty: Number(quantity)
+        qty: Number(quantity),
+        exhibitionId: exhibitionId
       });
     }
 
@@ -400,28 +403,42 @@ app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]
       employeeId = rows[0]?.Employee_ID;
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID, Email, Phone_number, Payment_method) VALUES ('In-Person', CURRENT_DATE, ?, ?, ?, ?, 'Cash')",
-      [visit_date, membershipId, email, phone]
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    const saleId = result.insertId;
-
-    for (let item of cart) {
-      const finalPrice = item.price * (1 - discount);
-      await pool.query(
-        `INSERT INTO ticket_line 
-         (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket)
-         VALUES (?, ?, ?, ?)`,
-        [saleId, item.name, item.qty, finalPrice]
+      const [result] = await connection.query(
+        "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID, Email, Phone_number, Payment_method) VALUES ('In-Person', CURRENT_DATE, ?, ?, ?, ?, 'Cash')",
+        [visit_date, membershipId, email, phone]
       );
+
+      const saleId = result.insertId;
+
+      for (let item of cart) {
+        const finalPrice = item.price * (1 - discount);
+        await connection.query(
+          `INSERT INTO ticket_line
+           (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
+           VALUES (?, ?, ?, ?, ?)`,
+          [saleId, item.name, item.qty, finalPrice, item.exhibitionId || null]
+        );
+      }
+
+      await connection.commit();
+      setFlash(req, "Ticket sale completed!");
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
 
     req.session.ticketCart = [];
     req.session.visitorEmail = null;
     req.session.visitorPhone = null;
+    req.session.membershipId = null;
+    req.session.visitDate = null;
 
-    setFlash(req, "Ticket sale completed!");
     res.redirect("/dashboard");
   }));
 }

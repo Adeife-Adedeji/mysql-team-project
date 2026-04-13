@@ -124,6 +124,8 @@ function registerExhibitionRoutes(app, { pool }) {
       return res.redirect("/add-exhibition");
     }
 
+    await pool.query("DELETE FROM Schedule WHERE Exhibition_ID = ?", [idToDelete]);
+    await pool.query("UPDATE ticket_line SET Exhibition_ID = NULL WHERE Exhibition_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Exhibition_Artwork WHERE Exhibition_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Exhibition WHERE Exhibition_ID = ?", [idToDelete]);
     setFlash(req, "Exhibition and its artwork links successfully deleted!");
