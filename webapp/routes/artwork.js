@@ -23,6 +23,14 @@ const ART_TYPES = [
   "Installation", "Video Art", "Textile", "Ceramic", "Digital Art"
 ];
 
+const ART_PERIODS = [
+  "Early Renaissance (1300-1499)", "High Renaissance (1500-1527)", "Mannerism (1520-1600)",
+  "Baroque (1600-1750)", "Rococo (1700-1775)", "Neoclassicism (1750-1850)", "Romanticism (1800-1850)",
+  "Realism (1840-1880)", "Impressionism (1860-1890)", "Post-Impressionism (1886-1905)", "Modernism (1890-1970)",
+  "Expressionism (1905-1920)", "Cubism (1907-1914)", "Surrealism (1920s-1950s)", "Abstract Expressionism (1940s-1950s)",
+  "Pop Art (1950s-1960s)", "Contemporary (1970-present)"
+];
+
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const artworkPage = getPageNumber(req.query.artwork_page);
@@ -107,7 +115,14 @@ function registerArtworkRoutes (app, { pool }) {
           </label>
           <label>
             Period
-            <input type="text" name="time_period" value="${editArtwork ? escapeHtml(editArtwork.Time_Period || "") : ""}" placeholder="e.g. 1601-1650">
+            <select name="time_period">
+              <option value="">Select a period</option>
+              ${ART_PERIODS.map((period) => `
+                <option value="${escapeHtml(period)}" ${editArtwork && editArtwork.Time_Period === period ? "selected" : ""}>
+                  ${escapeHtml(period)}
+                </option>
+              `).join("")}
+            </select>
           </label>
           <label>Artist
             <select name="artist_id" required>
