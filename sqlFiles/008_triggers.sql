@@ -60,6 +60,39 @@ BEGIN
     END IF;
 END$$
 
+-- Trigger: prevent adding duplicate artwork
+
+DROP TRIGGER IF EXISTS trigger_check_artwork_duplicate$$
+CREATE TRIGGER trigger_check_artwork_duplicate_insert
+BEFORE INSERT ON Artwork
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM Artwork
+        WHERE Title = NEW.Title
+          AND Artist_ID = NEW.Artist_ID
+          AND (
+                (Date_Created = NEW.Date_Created)
+                OR (Date_Created IS NULL AND NEW.Date_Created IS NULL)
+              )
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Artwork already exists: same title, artist, and creation date';
+    END IF;
+END$$
+
+-- trigger: prevent exhbition from ending before it starts
+DROP TRIGGER IF EXISTS trigger_check_exhibition_dates$$
+CREATE TRIGGER trigger_check_exhibition_dates
+BEFORE INSERT ON Exhibition
+FOR EACH ROW
+BEGIN
+    IF NEW.Ending_Date < NEW.Starting_Date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Exhibition end date cannot be before start date';
+    END IF;
+END$$
+
 -- Trigger: block ticket sale if membership is expired
 -- Only runs if a Membership_ID was provided (IS NOT NULL).
 -- Date_Exited < NEW.Visit_Date means the membership expired before the visit date.

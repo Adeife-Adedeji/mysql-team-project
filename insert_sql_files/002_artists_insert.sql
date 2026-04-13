@@ -6,19 +6,19 @@ USE museumdb;
 
 -- @block
 INSERT INTO artist (Artist_Name, Date_of_Birth, Date_of_Death, Birth_Place) VALUES
-('Hans von Aachen',               '1552-01-01', '1615-03-04', 'Köln'),
-('Carl Frederik Aagaard',         '1833-01-29', '1895-11-02', 'Odense'),
-('Giulio Clovio',                 '1498-01-01', '1578-01-05', 'Grizane'),
-('Giovanni di Balduccio',         '1290-01-01',  '1365-01-01', 'Pisa'),
-('Albrecht Dürer',                '1471-05-21', '1528-04-06', 'Nürnberg'),
-('Johann Paul Egell',             '1691-04-09', '1752-01-10', 'Mannheim'),
-('John Henry Fuseli',             '1741-02-07', '1825-04-16', 'Zurich'),
-('Vincent van Gogh',              '1853-03-30', '1890-07-29', 'Groot Zundert'),
+('Hans von Aachen', '1552-01-01', '1615-03-04', 'Köln'),
+('Carl Frederik Aagaard', '1833-01-29', '1895-11-02', 'Odense'),
+('Giulio Clovio', '1498-01-01', '1578-01-05', 'Grizane'),
+('Giovanni di Balduccio', '1290-01-01', '1365-01-01', 'Pisa'),
+('Albrecht Dürer', '1471-05-21', '1528-04-06', 'Nürnberg'),
+('Johann Paul Egell', '1691-04-09', '1752-01-10', 'Mannheim'),
+('John Henry Fuseli', '1741-02-07', '1825-04-16', 'Zurich'),
+('Vincent van Gogh', '1853-03-30', '1890-07-29', 'Groot Zundert'),
 ('Jean-Auguste-Dominique Ingres', '1780-08-29', '1867-01-14', 'Montauban'),
-('Jacopo da Empoli',              '1551-04-30', '1640-09-30', 'Firenze'),
-('Friedrich Kerseboom',           '1632-01-01', '1693-01-01', 'Solingen'),
-('Nicolas Lancret',               '1690-01-22', '1743-09-14', 'Paris'),
-('Claude Monet',                  '1840-01-01', '1926-01-01', 'Paris');
+('Jacopo da Empoli', '1551-04-30', '1640-09-30', 'Firenze'),
+('Friedrich Kerseboom', '1632-01-01', '1693-01-01', 'Solingen'),
+('Nicolas Lancret', '1690-01-22', '1743-09-14', 'Paris'),
+('Claude Monet', '1840-01-01', '1926-01-01', 'Paris');
 
 -- artwork insert
 -- @block
@@ -36,29 +36,29 @@ SELECT
     'catalog_import',
     CURDATE()
 FROM (
-    SELECT 'Allegory' AS Title, 'painting' AS Type, '1598-01-01' AS Date_Created, '1601-1650' AS Time_Period, 'Mannerism' AS Art_Style, 'Hans von Aachen' AS Artist_Name
+    SELECT 'Allegory' AS Title, 'Painting' AS Type, '1598-01-01' AS Date_Created, '1601-1650' AS Time_Period, 'Mannerism' AS Art_Style, 'Hans von Aachen' AS Artist_Name
     UNION ALL
-    SELECT 'The Rose Garden', 'painting', '1877-01-01', '1851-1900', 'Romanticism', 'Carl Frederik Aagaard'
+    SELECT 'The Rose Garden', 'Painting', '1877-01-01', '1851-1900', 'Romanticism', 'Carl Frederik Aagaard'
     UNION ALL
-    SELECT 'The Farnese Hours', 'illumination', '1537-04-01', '1501-1550', 'Renaissance', 'Giulio Clovio'
+    SELECT 'The Farnese Hours', 'Illumination', '1537-04-01', '1501-1550', 'Renaissance', 'Giulio Clovio'
     UNION ALL
-    SELECT 'St Peter Martyr: Reburial', 'sculpture', '1335-01-01', '1301-1350', NULL, 'Giovanni di Balduccio'
+    SELECT 'St Peter Martyr: Reburial', 'Sculpture', '1335-01-01', '1301-1350', NULL, 'Giovanni di Balduccio'
     UNION ALL
-    SELECT 'Female Head Type 7', 'graphics', '1528-01-01', '1501-1550', NULL, 'Albrecht Dürer'
+    SELECT 'Female Head Type 7', 'Graphics', '1528-01-01', '1501-1550', NULL, 'Albrecht Dürer'
     UNION ALL
-    SELECT 'Deposition', 'sculpture', '1740-01-01', '1701-1750', 'Mannerism', 'Johann Paul Egell'
+    SELECT 'Deposition', 'Sculpture', '1740-01-01', '1701-1750', 'Mannerism', 'Johann Paul Egell'
     UNION ALL
-    SELECT 'Leonore Discovers Dagger', 'painting', '1795-01-01', '1751-1800', 'Romanticism', 'John Henry Fuseli'
+    SELECT 'Leonore Discovers Dagger', 'Painting', '1795-01-01', '1751-1800', 'Romanticism', 'John Henry Fuseli'
     UNION ALL
-    SELECT 'La Roubine du Roi', 'graphics', '1888-06-01', '1851-1900', 'Impressionism', 'Vincent van Gogh'
+    SELECT 'La Roubine du Roi', 'Graphics', '1888-06-01', '1851-1900', 'Impressionism', 'Vincent van Gogh'
     UNION ALL
-    SELECT 'The Birth of the Last Muse', 'graphics', '1856-01-01', '1801-1850', 'Renaissance', 'Jean-Auguste-Dominique Ingres'
+    SELECT 'The Birth of the Last Muse', 'Graphics', '1856-01-01', '1801-1850', 'Renaissance', 'Jean-Auguste-Dominique Ingres'
     UNION ALL
-    SELECT 'Deposition', 'painting', NULL, '1551-1600', 'Mannerism', 'Jacopo da Empoli'
+    SELECT 'Deposition', 'Painting', NULL, '1551-1600', 'Mannerism', 'Jacopo da Empoli'
     UNION ALL
-    SELECT 'Portrait of Sir John Langham', 'painting', '1683-01-01', '1651-1700', 'Mannerism', 'Friedrich Kerseboom'
+    SELECT 'Portrait of Sir John Langham', 'Painting', '1683-01-01', '1651-1700', 'Mannerism', 'Friedrich Kerseboom'
     UNION ALL
-    SELECT 'Billiard Players', 'painting', NULL, '1701-1750', NULL, 'Nicolas Lancret'
+    SELECT 'Billiard Players', 'Painting', NULL, '1701-1750', NULL, 'Nicolas Lancret'
 ) tmp
 JOIN Artist a ON a.Artist_Name = tmp.Artist_Name;
 
