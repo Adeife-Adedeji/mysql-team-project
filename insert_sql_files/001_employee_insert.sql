@@ -1,7 +1,8 @@
---employee and departments creation
+USE museumdb;
 
+-- employee and departments creation
 
---@block
+-- create departments and employees for each department
 INSERT INTO Department (Department_Name, Manager_ID, Created_By, Created_At, Updated_By, Updated_AT) VALUES 
 ('Curatorial', NULL, 'system', CURDATE(), 'system', CURDATE()),
 ('Conservation', NULL, 'system', CURDATE(), 'system', CURDATE()),
@@ -10,7 +11,6 @@ INSERT INTO Department (Department_Name, Manager_ID, Created_By, Created_At, Upd
 ('Education', NULL, 'system', CURDATE(), 'system', CURDATE()),
 ('Marketing', NULL, 'system', CURDATE(), 'system', CURDATE());
 
---@block
 INSERT INTO Employee (Last_Name, First_Name, Date_Hired, Email, Employee_Address, Date_of_Birth, Salary, Employee_Role, Department_ID, Created_By, Created_At) VALUES
 -- Curatorial (Department_ID = 1)
 ('Chen', 'Wei', '2020-03-15', 'wei.chen@museum.org', '123 Museum Ave, New York, NY', '1975-06-10', 85000.00, 'Chief Curator', 1, 'system', CURDATE()),
@@ -52,8 +52,7 @@ INSERT INTO Employee (Last_Name, First_Name, Date_Hired, Email, Employee_Address
 ('King', 'Michelle', '2021-03-17', 'michelle.king@museum.org', '741 Content Dr, Bronx, NY', '1993-02-28', 55000.00, 'Content Creator', 6, 'system', CURDATE()),
 ('Scott', 'Brian', '2022-08-08', 'brian.scott@museum.org', '852 Analytics St, Staten Island, NY', '1990-12-12', 49000.00, 'Marketing Coord', 6, 'system', CURDATE());
 
-
---@block
+-- Update department managers (each manager must be an employee in that department)
 UPDATE Department SET Manager_ID = (SELECT Employee_ID FROM Employee WHERE Employee_Role = 'Chief Curator' AND Department_ID = 1) WHERE Department_ID = 1;
 UPDATE Department SET Manager_ID = (SELECT Employee_ID FROM Employee WHERE Employee_Role = 'Head Conservator' AND Department_ID = 2) WHERE Department_ID = 2;
 UPDATE Department SET Manager_ID = (SELECT Employee_ID FROM Employee WHERE Employee_Role = 'Lead Exhibit Des' AND Department_ID = 3) WHERE Department_ID = 3;

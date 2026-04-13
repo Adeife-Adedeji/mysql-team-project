@@ -1,5 +1,7 @@
+USE museumdb;
+
 -- Added after exhibition was created due to foreign key constraint on Schedule.Exhibition_ID
---@block
+
 INSERT INTO Schedule (Shift_Date, Start_Time, End_Time, Employee_ID, Exhibition_ID, Duty, Created_By, Created_At, Updated_By, Updated_At) VALUES
 ('2026-04-15', '09:00:00', '17:00:00', 22, 1, 'Supervisor', 'system', CURDATE(), 'system', CURDATE()),
 ('2026-04-15', '10:00:00', '18:00:00', 23, 1, 'Gallery Attendant', 'system', CURDATE(), 'system', CURDATE()),

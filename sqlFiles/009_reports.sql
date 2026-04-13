@@ -1,5 +1,4 @@
--- HOW TO RUN: In MySQL Workbench use File > Run SQL Script (NOT the query editor lightning bolt)
--- The DELIMITER command only works via File > Run SQL Script
+
 
 USE museumdb;
 

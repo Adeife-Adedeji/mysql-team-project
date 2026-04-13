@@ -61,7 +61,7 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Ticket Sales</h2>
             <div class="button-row dashboard-actions">
-              <a class="button" href="/sell-ticket">Sell Admission Tickets</a>
+              <a class="button" href="/sell-ticket">Admissions Desk</a>
             </div>
           </section>
           <section class="dashboard-section">
@@ -165,8 +165,8 @@ function registerDashboardRoutes(app, { pool }) {
           <section class="dashboard-section">
             <h2>Admissions Desk</h2>
             <div class="button-row dashboard-actions">
-              <a class="button" href="/add-ticket">Manage Ticket Orders</a>
-              <a class="button" href="/add-ticket-line">Manage Ticket Line Items</a>
+              <a class="button" href="/sell-ticket">Admissions Desk</a>
+              <a class="button button-secondary" href="/add-ticket">Advanced Records</a>
               <a class="button button-secondary" href="/add-membership">Manage Memberships</a>
             </div>
           </section>
@@ -284,6 +284,13 @@ function registerDashboardRoutes(app, { pool }) {
         ${renderFlash(req)}
         ${notificationsHtml}
         ${triggerViolationsHtml}
+        <section class="dashboard-section">
+          <h2>Ticket Sales &amp; Front Desk</h2>
+          <div class="button-row dashboard-actions">
+            <a class="button" href="/sell-ticket">Admissions Desk</a>
+            <a class="button button-secondary" href="/add-membership">Visitor Memberships</a>
+          </div>
+        </section>
         <section class="dashboard-section">
           <h2>Collections Management</h2>
           <div class="button-row dashboard-actions">

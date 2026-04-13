@@ -16,6 +16,8 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     );
 
     let membershipId = req.session.user.membershipId ?? null;
+    const discount = 0.2; // Members always get 20% off
+
     if (membershipId !== null) {
       const [memberRows] = await pool.query(
         "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
@@ -54,6 +56,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         <p class="eyebrow">Member Portal</p>
         <h1>Purchase Tickets</h1>
         <p class="dashboard-note">Use one form to complete a ticket purchase instead of creating ticket records manually.</p>
+        <p style="color:green; font-weight:bold;">✨ 20% Member Discount will be applied automatically!</p>
         ${renderFlash(req)}
         <form method="post" action="/purchase-ticket" class="form-grid">
           <label>Visit Date
@@ -62,9 +65,9 @@ function registerPurchaseTicketRoutes(app, { pool }) {
           <label>Ticket Type
             <select name="ticket_type" required>
               <option value="">— Select —</option>
-              <option value="General Admission">General Admission ($20.00)</option>
-              <option value="Senior">Senior 65+ ($15.00)</option>
-              <option value="Child">Child under 12 ($10.00)</option>
+              <option value="General Admission">General Admission (<s>$20.00</s> → $16.00)</option>
+              <option value="Senior">Senior 65+ (<s>$15.00</s> → $12.00)</option>
+              <option value="Child">Child under 12 (<s>$10.00</s> → $8.00)</option>
             </select>
           </label>
           <label>Quantity
@@ -120,15 +123,18 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       return res.redirect("/purchase-ticket");
     }
 
-    let pricePerTicket;
+    const discount = 0.2;
+    let basePrice;
     switch (ticketType) {
-      case "General Admission": pricePerTicket = 20.00; break;
-      case "Senior": pricePerTicket = 15.00; break;
-      case "Child": pricePerTicket = 10.00; break;
+      case "General Admission": basePrice = 20.00; break;
+      case "Senior": basePrice = 15.00; break;
+      case "Child": basePrice = 10.00; break;
       default:
         setFlash(req, "Invalid ticket type selected.");
         return res.redirect("/purchase-ticket");
     }
+
+    const finalPrice = basePrice * (1 - discount);
 
     const membershipId = req.session.user.membershipId ?? null;
     if (membershipId === null) {
@@ -158,11 +164,11 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       await connection.query(
         `INSERT INTO ticket_line (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket, Exhibition_ID)
          VALUES (?, ?, ?, ?, ?)`,
-        [ticketResult.insertId, ticketType, quantity, pricePerTicket, exhibitionId || null],
+        [ticketResult.insertId, ticketType, quantity, finalPrice, exhibitionId || null],
       );
 
       await connection.commit();
-      setFlash(req, `Ticket purchase completed. Confirmation #${ticketResult.insertId}.`);
+      setFlash(req, `Ticket purchase completed. Confirmation #${ticketResult.insertId}. Total: $${(finalPrice * quantity).toFixed(2)}`);
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -173,37 +179,48 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     res.redirect("/purchase-ticket");
   }));
 
-  app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
-  const membershipId = req.session.membershipId || null;
-  let discount = 0;
+  app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
+    const membershipId = req.session.membershipId || null;
+    let discount = 0;
 
-  if (membershipId) {
-    discount = 0.2;
+    if (membershipId) {
+      discount = 0.2;
     }
-  const [exhibitions] = await pool.query(
-  "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name"
-);
-  const cart = req.session.ticketCart || [];
 
+    const [exhibitions] = await pool.query(
+      "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name"
+    );
 
-  const tickets = [
-    { Ticket_Type_ID: 1, Name: "General Admission", Price: 20 },
-    { Ticket_Type_ID: 2, Name: "Senior", Price: 15 },
-    { Ticket_Type_ID: 3, Name: "Child", Price: 10 }
-  ];
+    const [members] = await pool.query(
+      "SELECT Membership_ID, First_Name, Last_Name FROM Membership ORDER BY Last_Name, First_Name"
+    );
 
-  res.send(renderPage({
-    title: "Sell Tickets",
-    user: req.session.user,
-    content: `
-<h1>Sell Admission Tickets</h1>
+    const cart = req.session.ticketCart || [];
+
+    const tickets = [
+      { Ticket_Type_ID: 1, Name: "General Admission", Price: 20 },
+      { Ticket_Type_ID: 2, Name: "Senior", Price: 15 },
+      { Ticket_Type_ID: 3, Name: "Child", Price: 10 }
+    ];
+
+    res.send(renderPage({
+      title: "Admissions Desk",
+      user: req.session.user,
+      content: `
+<h1>Admissions Desk</h1>
 
 ${renderFlash(req)}
 
-
  <form method="post" action="/sell-ticket/add" class="form-grid">
-  <label>Membership ID (optional)
-      <input type="number" name="membership_id">
+  <label>Select Member (optional)
+      <select name="membership_id">
+        <option value="">— No Membership —</option>
+        ${members.map(m => `
+          <option value="${m.Membership_ID}" ${membershipId == m.Membership_ID ? 'selected' : ''}>
+            ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)}
+          </option>
+        `).join("")}
+      </select>
   </label>
   <label>Visit Date
     <input type="date" name="visit_date" required>
@@ -273,99 +290,99 @@ ${cart.length === 0 ? "<p>No tickets added yet</p>" : `
   <button class="button">Process Sale</button>
   </form>
 `}
-`
+    `,
+    }));
   }));
-}));
 
-app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+  app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
+    const { ticket_type_id, quantity, visit_date, membership_id, email, phone } = req.body;
+    req.session.visitDate = visit_date;
+    req.session.membershipId = membership_id || null;
+    req.session.visitorEmail = email || null;
+    req.session.visitorPhone = phone || null;
 
-  const { ticket_type_id, quantity, visit_date} = req.body;
-  req.session.visitDate = visit_date;
-  const { membership_id } = req.body;
-  req.session.membershipId = membership_id || null;
+    let ticket;
+    if (ticket_type_id == 1) ticket = { Name: "General Admission", Price: 20 };
+    else if (ticket_type_id == 2) ticket = { Name: "Senior", Price: 15 };
+    else if (ticket_type_id == 3) ticket = { Name: "Child", Price: 10 };
 
-  let ticket;
+    if (!req.session.ticketCart) {
+      req.session.ticketCart = [];
+    }
 
-  if (ticket_type_id == 1) ticket = { Name: "General Admission", Price: 20 };
-  else if (ticket_type_id == 2) ticket = { Name: "Senior", Price: 15 };
-  else if (ticket_type_id == 3) ticket = { Name: "Child", Price: 10 };
+    const existing = req.session.ticketCart.find(t => t.id == ticket_type_id);
+    if (existing) {
+      existing.qty += Number(quantity);
+    } else {
+      req.session.ticketCart.push({
+        id: ticket_type_id,
+        name: ticket.Name,
+        price: ticket.Price,
+        qty: Number(quantity)
+      });
+    }
 
-  if (!req.session.ticketCart) {
+    res.redirect("/sell-ticket");
+  }));
+
+  app.post("/sell-ticket/checkout", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
+    const cart = req.session.ticketCart || [];
+    const visit_date = req.session.visitDate;
+    let membershipId = req.session.membershipId || null;
+    const email = req.session.visitorEmail || null;
+    const phone = req.session.visitorPhone || null;
+    let discount = 0;
+
+    if (membershipId) {
+      const [rows] = await pool.query(
+        "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
+        [membershipId]
+      );
+      if (rows.length > 0) {
+        discount = 0.2;
+      } else {
+        membershipId = null;
+      }
+    }
+
+    if (cart.length === 0) {
+      setFlash(req, "No tickets in order.");
+      return res.redirect("/sell-ticket");
+    }
+
+    let employeeId = req.session.user.employeeId;
+    if (!employeeId) {
+      const [rows] = await pool.query(
+        "SELECT Employee_ID FROM Employee WHERE Email = ?",
+        [req.session.user.email]
+      );
+      employeeId = rows[0]?.Employee_ID;
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID, Email, Phone_number, Payment_method) VALUES ('In-Person', CURRENT_DATE, ?, ?, ?, ?, 'Cash')",
+      [visit_date, membershipId, email, phone]
+    );
+
+    const saleId = result.insertId;
+
+    for (let item of cart) {
+      const finalPrice = item.price * (1 - discount);
+      await pool.query(
+        `INSERT INTO ticket_line 
+         (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket)
+         VALUES (?, ?, ?, ?)`,
+        [saleId, item.name, item.qty, finalPrice]
+      );
+    }
+
     req.session.ticketCart = [];
-  }
+    req.session.visitorEmail = null;
+    req.session.visitorPhone = null;
 
-  const existing = req.session.ticketCart.find(t => t.id == ticket_type_id);
-
-  if (existing) {
-    existing.qty += Number(quantity);
-  } else {
-    req.session.ticketCart.push({
-      id: ticket_type_id,
-      name: ticket.Name,
-      price: ticket.Price,
-      qty: Number(quantity)
-    });
-  }
-
-  res.redirect("/sell-ticket");
-}));
-
-app.post("/sell-ticket/checkout", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
-
-  const cart = req.session.ticketCart || [];
-  const visit_date = req.session.visitDate;
-  let membershipId = req.session.membershipId || null;
-let discount = 0;
-
-if (membershipId) {
-  const [rows] = await pool.query(
-    "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
-    [membershipId]
-  );
-
-  if (rows.length > 0) {
-    discount = 0.2; 
-  } else {
-    membershipId = null;
-  }
+    setFlash(req, "Ticket sale completed!");
+    res.redirect("/sell-ticket");
+  }));
 }
-  if (cart.length === 0) {
-    setFlash(req, "No tickets in order.");
-    return res.redirect("/sell-ticket");
-  }
 
-  let employeeId = req.session.user.employeeId;
-
-  if (!employeeId) {
-    const [rows] = await pool.query(
-      "SELECT Employee_ID FROM Employee WHERE Email = ?",
-      [req.session.user.email]
-    );
-    employeeId = rows[0]?.Employee_ID;
-  }
-
-  const [result] = await pool.query(
-  "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID) VALUES ('In-Person', CURRENT_DATE, ?, ?)",
-  [visit_date, membershipId]
-  );
-
-  const saleId = result.insertId;
-
-  for (let item of cart) {
-    const finalPrice = item.price * (1 - discount);
-    await pool.query(
-      `INSERT INTO ticket_line 
-       (Ticket_ID, Ticket_Type, Quantity, Price_per_ticket)
-       VALUES (?, ?, ?, ?)`,
-      [saleId, item.name, item.qty, finalPrice]
-    );
-  }
-
-  req.session.ticketCart = [];
-
-  setFlash(req, "Ticket sale completed!");
-  res.redirect("/sell-ticket");
-}));
-
-}
 module.exports = { registerPurchaseTicketRoutes };
