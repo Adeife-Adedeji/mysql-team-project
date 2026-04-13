@@ -179,7 +179,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     res.redirect("/purchase-ticket");
   }));
 
-  app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+  app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
         const tickets = [
       { Ticket_Type_ID: 1, Name: "General Admission", Price: 20 },
       { Ticket_Type_ID: 2, Name: "Senior", Price: 15 },
@@ -215,9 +215,16 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     <section class="card narrow">
     ${renderFlash(req)}
       <form method="post" action="/sell-ticket/add" class="form-grid">
-        <label>Membership ID (optional)
-          <input type="number" name="membership_id">
-      </label>
+        <label>Membership (optional)
+          <select name="membership_id">
+            <option value="">— None / Non-Member —</option>
+            ${members.map(m => `
+              <option value="${m.Membership_ID}" ${req.session.membershipId == m.Membership_ID ? 'selected' : ''}>
+                ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
     <label>Visit Date
     <input type="date" name="visit_date" required>
   </label>
@@ -289,7 +296,7 @@ ${cart.length === 0 ? "<p>No tickets added yet</p>" : `
     }));
   }));
 
-app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
 
   const [[todayTotals]] = await pool.query(`
     SELECT COUNT(DISTINCT t.Ticket_ID) AS total_sales,
@@ -324,7 +331,7 @@ app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee"]), a
 
 
 
-app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
     const { ticket_type_id, quantity, visit_date, membership_id, email, phone } = req.body;
 
       req.session.visitDate = visit_date;
