@@ -26,6 +26,10 @@ function renderFlash(req) {
 }
 
 function renderPage({ title, user, content }) {
+  const roleLabel = user?.role
+    ? escapeHtml(user.role.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()))
+    : "";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,16 +40,31 @@ function renderPage({ title, user, content }) {
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">Museum Portal</a>
-    <nav>
-      <a href="/">Home</a>
-      ${user ? '<a href="/dashboard">Dashboard</a>' : '<a href="/login">Login</a>'}
-      ${user ? '<form method="post" action="/logout" class="inline-form"><button class="link-button" type="submit">Logout</button></form>' : ""}
-    </nav>
+    <div class="site-header__topline"></div>
+    <div class="site-header__inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">MFAH</span>
+        <span class="brand-copy">
+          <span class="brand-eyebrow">The Museum of Fine Arts, Houston</span>
+          <span class="brand-title">Internal Operations Portal</span>
+        </span>
+      </a>
+      <div class="site-header__actions">
+        <nav class="site-nav" aria-label="Primary">
+          <a href="/">Home</a>
+          ${user ? '<a href="/dashboard">Dashboard</a>' : '<a href="/login">Login</a>'}
+        </nav>
+        <div class="session-meta">
+          ${user ? `<span class="session-chip">${roleLabel}</span>` : ""}
+          ${user ? '<form method="post" action="/logout" class="inline-form"><button class="link-button" type="submit">Log Out</button></form>' : ""}
+        </div>
+      </div>
+    </div>
   </header>
   <main class="container">
     ${content}
   </main>
+  <script src="/app.js"></script>
 </body>
 </html>`;
 }

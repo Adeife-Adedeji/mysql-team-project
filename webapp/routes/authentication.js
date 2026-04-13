@@ -12,13 +12,33 @@ function registerAuthenticationRoutes(app, { pool }) {
       title: "The Museum of Fine Arts, Houston",
       user: req.session.user,
       content: `
-      <section class="hero card narrow">
-        <p class="eyebrow">Museum Operations</p>
-        <h1>Museum Portal</h1>
-        <p>Use the member, employee, or supervisor portal to purchase tickets, manage daily operations, and review museum reports.</p>
-        <div class="button-row">
-          ${req.session.user ? '<a class="button" href="/dashboard">Go to Dashboard</a>' : '<a class="button" href="/login">Open Login</a>'}
+      <section class="hero hero-grid reveal">
+        <div class="hero-copy card">
+          <p class="eyebrow">Museum Operations</p>
+          <h1>Museum staff and member access.</h1>
+          <p class="hero-lead">Use one portal for admissions, memberships, collections, reporting, retail, and café operations with clearer navigation and more readable controls.</p>
+          <div class="button-row">
+            ${req.session.user ? '<a class="button" href="/dashboard">Open Dashboard</a>' : '<a class="button" href="/login">Staff Login</a>'}
+            ${req.session.user ? '' : '<a class="button button-secondary" href="/signup">Member Access</a>'}
+          </div>
         </div>
+        <aside class="hero-visual card">
+          <p class="eyebrow">Portal Areas</p>
+          <div class="hero-panel-list">
+            <section class="hero-panel-item">
+              <h2>Front Desk</h2>
+              <p>Admissions sales, visitor memberships, and guided tour assistance.</p>
+            </section>
+            <section class="hero-panel-item">
+              <h2>Collections</h2>
+              <p>Artists, artworks, exhibitions, conservation, and outgoing loans.</p>
+            </section>
+            <section class="hero-panel-item">
+              <h2>Operations</h2>
+              <p>Scheduling, events, reports, retail, and café transaction management.</p>
+            </section>
+          </div>
+        </aside>
       </section>
     `,
     }));
@@ -29,8 +49,10 @@ function registerAuthenticationRoutes(app, { pool }) {
       title: "Log In",
       user: req.session.user,
       content: `
-      <section class="card narrow">
+      <section class="card auth-card narrow reveal">
+        <p class="eyebrow">Staff Access</p>
         <h1>Log In</h1>
+        <p class="auth-intro">Use employee, admissions, retail, café, or supervisor credentials to reach your operational workspace.</p>
         ${renderFlash(req)}
         <form id="login-form" method="post" action="/login" class="form-grid">
           <label>Email<input type="email" name="email" required></label>
@@ -50,8 +72,10 @@ function registerAuthenticationRoutes(app, { pool }) {
       title: "Sign Up",
       user: req.session.user,
       content: `
-      <section class="card narrow">
+      <section class="card auth-card narrow reveal">
+        <p class="eyebrow">Member Access</p>
         <h1>Member Sign Up</h1>
+        <p class="auth-intro">Create a member record for tickets, tours, and museum account access.</p>
         ${renderFlash(req)}
         <form id="signup-form" method="post" action="/signup" class="form-grid">
           <label>First Name<input type="text" name="first_name" required></label>
