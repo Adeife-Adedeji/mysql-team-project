@@ -36,7 +36,7 @@ function createPool(env) {
     port: Number(env.DB_PORT || 3306),
     user: env.DB_USER || "root",
     password: env.DB_PASSWORD || "",
-    database: env.DB_NAME || "teamdb",
+    database: env.DB_NAME || "museumdb",
     waitForConnections: true,
     connectionLimit: 10,
   };

@@ -132,8 +132,25 @@ function registerMembershipRoutes(app, { pool }) {
       return res.redirect("/add-membership");
     }
 
-    await pool.query("UPDATE Ticket SET Membership_ID = NULL WHERE Membership_ID = ?", [idToDelete]);
-    await pool.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      await connection.query("UPDATE users SET membership_id = NULL WHERE membership_id = ?", [idToDelete]);
+      await connection.query("DELETE FROM Tour_Registration WHERE Membership_ID = ?", [idToDelete]);
+      await connection.query("DELETE FROM event_registration WHERE Membership_ID = ?", [idToDelete]);
+      await connection.query("UPDATE Ticket SET Membership_ID = NULL WHERE Membership_ID = ?", [idToDelete]);
+      await connection.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
     setFlash(req, "Membership cancelled.");
     res.redirect("/add-membership");
   }));
