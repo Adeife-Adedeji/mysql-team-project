@@ -119,13 +119,22 @@ function registerArtistRoutes(app, { pool }) {
     }
 
     if (id) {
-      await pool.query(
-        `UPDATE Artist
-         SET Artist_Name = ?, Birth_Place = ?, Date_of_Birth = ?, Date_of_Death = ?
-         WHERE Artist_ID = ?`,
-        [name, birthplace, dob, dod, id],
-      );
-      setFlash(req, "Artist updated successfully.");
+      try {
+        await pool.query(
+          `UPDATE Artist
+           SET Artist_Name = ?, Birth_Place = ?, Date_of_Birth = ?, Date_of_Death = ?
+           WHERE Artist_ID = ?`,
+          [name, birthplace, dob, dod, id],
+        );
+        setFlash(req, "Artist updated successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
+      }
     } else {
       try {
         await pool.query(
