@@ -228,6 +228,13 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     <label>Visit Date
     <input type="date" name="visit_date" required>
   </label>
+  <label>Purchase Type
+    <select name="purchase_type" required>
+      <option value="In-Person" ${req.session.purchaseType === 'In-Person' ? 'selected' : ''}>In-Person</option>
+      <option value="Walk-up" ${req.session.purchaseType === 'Walk-up' ? 'selected' : ''}>Walk-up</option>
+      <option value="Online" ${req.session.purchaseType === 'Online' ? 'selected' : ''}>Online</option>
+    </select>
+  </label>
   <label>Ticket Type
     <select name="ticket_type_id" required>
       ${tickets.map(t => `
@@ -332,9 +339,10 @@ app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee", "su
 
 
 app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
-    const { ticket_type_id, quantity, visit_date, membership_id, email, phone } = req.body;
+    const { ticket_type_id, quantity, visit_date, membership_id, email, phone, purchase_type } = req.body;
 
       req.session.visitDate = visit_date;
+      req.session.purchaseType = purchase_type;
       let validMembership = null;
       if (membership_id) {
         const [rows] = await pool.query(
@@ -379,6 +387,7 @@ app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee",
   app.post("/sell-ticket/checkout", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
     const cart = req.session.ticketCart || [];
     const visit_date = req.session.visitDate;
+    const purchase_type = req.session.purchaseType || 'In-Person';
     let membershipId = req.session.membershipId || null;
     const email = req.session.visitorEmail || null;
     const phone = req.session.visitorPhone || null;
@@ -415,8 +424,8 @@ app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee",
       await connection.beginTransaction();
 
       const [result] = await connection.query(
-        "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID, Email, Phone_number, Payment_method) VALUES ('In-Person', CURRENT_DATE, ?, ?, ?, ?, 'Cash')",
-        [visit_date, membershipId, email, phone]
+        "INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Membership_ID, Email, Phone_number, Payment_method) VALUES (?, CURRENT_DATE, ?, ?, ?, ?, 'Cash')",
+        [purchase_type, visit_date, membershipId, email, phone]
       );
 
       const saleId = result.insertId;

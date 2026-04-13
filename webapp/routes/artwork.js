@@ -11,7 +11,7 @@ const {
 
 const ART_STYLES = [
   "Abstract", "Baroque", "Contemporary", "Cubism", "Expressionism", 
-  "Impressionism", "Modern", "Neoclassicism", "Pop Art", "Post-Impressionism", 
+  "Impressionism", "Mannerism","Modern", "Neoclassicism", "Pop Art", "Post-Impressionism", 
   "Realism", "Renaissance", "Romanticism", "Surrealism", "Symbolism"
 ];
 

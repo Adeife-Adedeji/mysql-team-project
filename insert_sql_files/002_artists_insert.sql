@@ -36,27 +36,27 @@ SELECT
     'catalog_import',
     CURDATE()
 FROM (
-    SELECT 'Allegory' AS Title, 'painting' AS Type, '1598-01-01' AS Date_Created, '1601-1650' AS Time_Period, NULL AS Art_Style, 'Hans von Aachen' AS Artist_Name
+    SELECT 'Allegory' AS Title, 'painting' AS Type, '1598-01-01' AS Date_Created, '1601-1650' AS Time_Period, 'Mannerism' AS Art_Style, 'Hans von Aachen' AS Artist_Name
     UNION ALL
-    SELECT 'The Rose Garden', 'painting', '1877-01-01', '1851-1900', NULL, 'Carl Frederik Aagaard'
+    SELECT 'The Rose Garden', 'painting', '1877-01-01', '1851-1900', 'Romanticism', 'Carl Frederik Aagaard'
     UNION ALL
-    SELECT 'The Farnese Hours', 'illumination', '1537-04-01', '1501-1550', NULL, 'Giulio Clovio'
+    SELECT 'The Farnese Hours', 'illumination', '1537-04-01', '1501-1550', 'Renaissance', 'Giulio Clovio'
     UNION ALL
     SELECT 'St Peter Martyr: Reburial', 'sculpture', '1335-01-01', '1301-1350', NULL, 'Giovanni di Balduccio'
     UNION ALL
     SELECT 'Female Head Type 7', 'graphics', '1528-01-01', '1501-1550', NULL, 'Albrecht Dürer'
     UNION ALL
-    SELECT 'Deposition', 'sculpture', '1740-01-01', '1701-1750', NULL, 'Johann Paul Egell'
+    SELECT 'Deposition', 'sculpture', '1740-01-01', '1701-1750', 'Mannerism', 'Johann Paul Egell'
     UNION ALL
-    SELECT 'Leonore Discovers Dagger', 'painting', '1795-01-01', '1751-1800', NULL, 'John Henry Fuseli'
+    SELECT 'Leonore Discovers Dagger', 'painting', '1795-01-01', '1751-1800', 'Romanticism', 'John Henry Fuseli'
     UNION ALL
-    SELECT 'La Roubine du Roi', 'graphics', '1888-06-01', '1851-1900', NULL, 'Vincent van Gogh'
+    SELECT 'La Roubine du Roi', 'graphics', '1888-06-01', '1851-1900', 'Impressionism', 'Vincent van Gogh'
     UNION ALL
-    SELECT 'The Birth of the Last Muse', 'graphics', '1856-01-01', '1801-1850', NULL, 'Jean-Auguste-Dominique Ingres'
+    SELECT 'The Birth of the Last Muse', 'graphics', '1856-01-01', '1801-1850', 'Renaissance', 'Jean-Auguste-Dominique Ingres'
     UNION ALL
-    SELECT 'Deposition', 'painting', NULL, '1551-1600', NULL, 'Jacopo da Empoli'
+    SELECT 'Deposition', 'painting', NULL, '1551-1600', 'Mannerism', 'Jacopo da Empoli'
     UNION ALL
-    SELECT 'Portrait of Sir John Langham', 'painting', '1683-01-01', '1651-1700', NULL, 'Friedrich Kerseboom'
+    SELECT 'Portrait of Sir John Langham', 'painting', '1683-01-01', '1651-1700', 'Mannerism', 'Friedrich Kerseboom'
     UNION ALL
     SELECT 'Billiard Players', 'painting', NULL, '1701-1750', NULL, 'Nicolas Lancret'
 ) tmp
