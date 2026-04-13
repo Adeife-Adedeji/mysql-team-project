@@ -174,6 +174,14 @@ function registerPurchaseTicketRoutes(app, { pool }) {
   }));
 
   app.get("/sell-ticket", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+
+    const [[todayTotals]] = await pool.query(`
+          SELECT COUNT(DISTINCT t.Ticket_ID) AS total_sales,
+          COALESCE(SUM(tl.Quantity * tl.Price_per_ticket), 0) AS total_revenue
+          FROM Ticket t
+          JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID
+          WHERE t.Purchase_Date = CURDATE()
+          `);
   const membershipId = req.session.membershipId || null;
   let discount = 0;
 
@@ -196,19 +204,13 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     title: "Sell Tickets",
     user: req.session.user,
     content: `
-<h1>Sell Admission Tickets</h1>
-
-${renderFlash(req)}
-
-
- <form method="post" action="/sell-ticket/add" class="form-grid">
+    <section class="card narrow">
   <label>Membership ID (optional)
       <input type="number" name="membership_id">
   </label>
   <label>Visit Date
     <input type="date" name="visit_date" required>
   </label>
-
   <label>Ticket Type
     <select name="ticket_type_id" required>
       ${tickets.map(t => `
@@ -276,6 +278,41 @@ ${cart.length === 0 ? "<p>No tickets added yet</p>" : `
 `
   }));
 }));
+
+app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
+
+  const [[todayTotals]] = await pool.query(`
+    SELECT COUNT(DISTINCT t.Ticket_ID) AS total_sales,
+           COALESCE(SUM(tl.Quantity * tl.Price_per_ticket), 0) AS total_revenue
+    FROM Ticket t
+    JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID
+    WHERE t.Purchase_Date = CURDATE()
+  `);
+
+  res.send(renderPage({
+    title: "Ticket Sales",
+    user: req.session.user,
+    content: `
+      <section class="card narrow">
+        <h1>Today's Ticket Sales</h1>
+
+        <div style="display:flex; gap:2rem; margin-top:1rem;">
+          <div style="background:#f0f7ff; padding:1rem; border-radius:8px; text-align:center;">
+            <div style="font-size:2rem; font-weight:bold;">${todayTotals.total_sales}</div>
+            <div>Tickets Sold</div>
+          </div>
+
+          <div style="background:#f0fff4; padding:1rem; border-radius:8px; text-align:center;">
+            <div style="font-size:2rem; font-weight:bold;">$${Number(todayTotals.total_revenue).toFixed(2)}</div>
+            <div>Revenue</div>
+          </div>
+        </div>
+      </section>
+    `
+  }));
+}));
+
+
 
 app.post("/sell-ticket/add", requireLogin, allowRoles(["admissions", "employee"]), asyncHandler(async (req, res) => {
 

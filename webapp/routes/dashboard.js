@@ -62,6 +62,7 @@ function registerDashboardRoutes(app, { pool }) {
             <h2>Ticket Sales</h2>
             <div class="button-row dashboard-actions">
               <a class="button" href="/sell-ticket">Sell Admission Tickets</a>
+              <a class="button button-secondary" href="/ticket-sales">View Ticket Sales</a>
             </div>
           </section>
           <section class="dashboard-section">
