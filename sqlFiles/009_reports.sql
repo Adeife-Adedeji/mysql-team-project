@@ -120,3 +120,27 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+-- =============================================================================
+-- SQL VIEW: Consolidated_Revenue
+-- Aggregates daily revenue from Tickets, Gift Shop, and Cafe.
+-- =============================================================================
+CREATE OR REPLACE VIEW Consolidated_Revenue AS
+SELECT 
+    d.Sale_Date,
+    COALESCE(SUM(d.Ticket_Rev), 0) AS Ticket_Revenue,
+    COALESCE(SUM(d.Gift_Rev), 0) AS Gift_Shop_Revenue,
+    COALESCE(SUM(d.Cafe_Rev), 0) AS Cafe_Revenue,
+    CAST(COALESCE(SUM(d.Ticket_Rev), 0) + COALESCE(SUM(d.Gift_Rev), 0) + COALESCE(SUM(d.Cafe_Rev), 0) AS DECIMAL(12,2)) AS Total_Daily_Revenue
+FROM (
+    SELECT Purchase_Date AS Sale_Date, Total_sum_of_ticket AS Ticket_Rev, 0 AS Gift_Rev, 0 AS Cafe_Rev
+    FROM Ticket T JOIN ticket_line TL ON T.Ticket_ID = TL.Ticket_ID
+    UNION ALL
+    SELECT Sale_Date, 0, Total_Sum_For_Gift_Shop_Sale, 0
+    FROM Gift_Shop_Sale GSS JOIN Gift_Shop_Sale_Line GSSL ON GSS.Gift_Shop_Sale_ID = GSSL.Gift_Shop_Sale_ID
+    UNION ALL
+    SELECT Sale_Date, 0, 0, Quantity * Price_When_Food_Was_Sold
+    FROM Food_Sale FS JOIN Food_Sale_Line FSL ON FS.Food_Sale_ID = FSL.Food_Sale_ID
+) d
+GROUP BY d.Sale_Date
+ORDER BY d.Sale_Date DESC;

@@ -92,7 +92,7 @@ function registerReportsRoutes(app, { pool }) {
     );
 
     const [cafeSalesRows] = await pool.query(
-      `SELECT F.Food_Name,
+      `SELECT F.Food_Name, F.Type,
               SUM(FSL.Quantity) AS Units_Sold,
               SUM(FSL.Quantity * FSL.Price_When_Food_Was_Sold) AS Revenue
        FROM Food_Sale FS
@@ -100,7 +100,7 @@ function registerReportsRoutes(app, { pool }) {
        JOIN Food F ON F.Food_ID = FSL.Food_ID
        WHERE (? IS NULL OR FS.Sale_Date >= ?)
          AND (? IS NULL OR FS.Sale_Date <= ?)
-       GROUP BY F.Food_ID, F.Food_Name
+       GROUP BY F.Food_ID, F.Food_Name, F.Type
        HAVING SUM(FSL.Quantity) > 0
        ORDER BY Revenue DESC, Units_Sold DESC, F.Food_Name`,
       [cafeStart, cafeStart, cafeEnd, cafeEnd],
@@ -188,12 +188,33 @@ function registerReportsRoutes(app, { pool }) {
       [scheduleStart, scheduleStart, scheduleEnd, scheduleEnd],
     );
 
+    const consolidatedStart = req.query.consolidated_start?.trim() || null;
+    const consolidatedEnd = req.query.consolidated_end?.trim() || null;
+
+    const [consolidatedRows] = await pool.query(
+      `SELECT * FROM Consolidated_Revenue 
+       WHERE (? IS NULL OR Sale_Date >= ?)
+         AND (? IS NULL OR Sale_Date <= ?)
+       LIMIT 50`,
+      [consolidatedStart, consolidatedStart, consolidatedEnd, consolidatedEnd]
+    );
+
     const ticketSalesHtml = ticketSalesRows.map((row) => `
       <tr>
         <td>${formatDisplayDate(row.Visit_Date)}</td>
         <td>${escapeHtml(row.Ticket_Type)}</td>
         <td>${row.Tickets_Sold}</td>
         <td>$${Number(row.Revenue).toFixed(2)}</td>
+      </tr>
+    `).join("");
+
+    const consolidatedHtml = consolidatedRows.map((row) => `
+      <tr>
+        <td>${formatDisplayDate(row.Sale_Date)}</td>
+        <td>$${Number(row.Ticket_Revenue).toFixed(2)}</td>
+        <td>$${Number(row.Gift_Shop_Revenue).toFixed(2)}</td>
+        <td>$${Number(row.Cafe_Revenue).toFixed(2)}</td>
+        <td style="font-weight:bold; background:#f9f9f9;">$${Number(row.Total_Daily_Revenue).toFixed(2)}</td>
       </tr>
     `).join("");
 
@@ -225,6 +246,7 @@ function registerReportsRoutes(app, { pool }) {
     const cafeSalesHtml = cafeSalesRows.map((row) => `
       <tr>
         <td>${escapeHtml(row.Food_Name)}</td>
+        <td>${escapeHtml(row.Type || "N/A")}</td>
         <td>${row.Units_Sold}</td>
         <td>$${Number(row.Revenue).toFixed(2)}</td>
       </tr>
@@ -290,6 +312,31 @@ function registerReportsRoutes(app, { pool }) {
         <p class="eyebrow">Supervisor Reports</p>
         <h1>Museum Reports</h1>
         <p class="dashboard-note">These report views satisfy the rubric requirement for filtered reports with selectable criteria.</p>
+      </section>
+      <section class="card narrow">
+        <h2>Consolidated Financial Summary</h2>
+        <p class="dashboard-note">Aggregated daily revenue from all departments (Tickets, Gift Shop, Café).</p>
+        <form method="get" action="/reports" class="form-grid">
+          <label>Start Date
+            <input type="date" name="consolidated_start" value="${escapeHtml(consolidatedStart ?? '')}">
+          </label>
+          <label>End Date
+            <input type="date" name="consolidated_end" value="${escapeHtml(consolidatedEnd ?? '')}">
+          </label>
+          <button class="button" type="submit">Run Report</button>
+        </form>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ticket Revenue</th>
+              <th>Gift Shop Revenue</th>
+              <th>Café Revenue</th>
+              <th>Total Daily Revenue</th>
+            </tr>
+          </thead>
+          <tbody>${consolidatedHtml || '<tr><td colspan="5">No financial data available.</td></tr>'}</tbody>
+        </table>
       </section>
       <section class="card narrow">
         <h2>Ticket Sales by Date Range</h2>

@@ -11,10 +11,12 @@ const {
   logTriggerViolation
 } = require("../helpers");
 
+const CAFE_TYPES = ["Food", "Drink", "Dessert", "Snack", "Other"];
+
 function registerCafeRoutes(app, { pool }) {
 
   app.get("/add-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
-    const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price, Stock_Quantity FROM Food");
+    const [foods] = await pool.query("SELECT Food_ID, Food_Name, Type, Food_Price, Stock_Quantity FROM Food");
     const isSuper = req.session.user.role === "supervisor";
 
     let editFood = null;
@@ -41,6 +43,7 @@ function registerCafeRoutes(app, { pool }) {
       <tr ${rowStyle}>
         <td>${food.Food_ID}</td>
         <td>${escapeHtml(food.Food_Name)}</td>
+        <td>${escapeHtml(food.Type || "—")}</td>
         <td>$${Number(food.Food_Price).toFixed(2)}</td>
         <td>${food.Stock_Quantity}</td>
         <td>${statusHtml}</td>
@@ -50,7 +53,7 @@ function registerCafeRoutes(app, { pool }) {
             <button class="link-button" type="submit">Edit</button>
           </form>
           ${isSuper ? `
-          <form method="post" action="/delete-food" class="inline-form" onsubmit="return confirm('Delete this food item?');">
+          <form method="post" action="/delete-food" class="inline-form" onsubmit="return confirm('Delete this café item?');">
             <input type="hidden" name="food_id" value="${food.Food_ID}">
             <button class="link-button danger" type="submit">Delete</button>
           </form>` : ""}
@@ -60,19 +63,25 @@ function registerCafeRoutes(app, { pool }) {
     }).join("");
 
     res.send(renderPage({
-      title: "Manage Food",
+      title: "Manage Café Items",
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editFood ? "Edit Food Item" : "Add Food Item"}</h1>
+        <h1>${editFood ? "Edit Café Item" : "Add Café Item"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-food" class="form-grid">
         ${editFood ? `<input type="hidden" name="food_id" value="${editFood.Food_ID}">` : ""}
-          <label>Food Name
+          <label>Item Name
             <input type="text" name="food_name"
             value="${editFood ? escapeHtml(editFood.Food_Name) : ""}" required>
           </label>
-          <label>Food Price ($)
+          <label>Type
+            <select name="type" required>
+              <option value="">Select a type</option>
+              ${CAFE_TYPES.map(t => `<option value="${t}" ${editFood && editFood.Type === t ? 'selected' : ''}>${t}</option>`).join("")}
+            </select>
+          </label>
+          <label>Price ($)
             <input type="number" step="0.01" name="food_price"
             value="${editFood ? editFood.Food_Price : ""}" required>
           </label>
@@ -81,17 +90,18 @@ function registerCafeRoutes(app, { pool }) {
             value="${editFood ? editFood.Stock_Quantity : ""}" required>
           </label>
           <button class="button" type="submit">
-            ${editFood ? "Update Food" : "Add Food"}
+            ${editFood ? "Update Item" : "Add Item"}
           </button>
         </form>
       </section>
       <section class="card narrow">
-        <h2>Food Inventory</h2>
+        <h2>Café Inventory</h2>
         <table>
           <thead>
             <tr>
               <th>ID</th>
               <th>Name</th>
+              <th>Type</th>
               <th>Price</th>
               <th>Stock</th>
               <th>Status</th>
@@ -99,7 +109,7 @@ function registerCafeRoutes(app, { pool }) {
             </tr>
           </thead>
           <tbody>
-            ${foodRows || '<tr><td colspan="6">No food items found.</td></tr>'}
+            ${foodRows || '<tr><td colspan="7">No café items found.</td></tr>'}
           </tbody>
         </table>
       </section>
@@ -109,24 +119,24 @@ function registerCafeRoutes(app, { pool }) {
 
   app.post("/add-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
     const foodId = req.body.food_id || null;
-    const { food_name: foodName, food_price: foodPrice, stock } = req.body;
+    const { food_name: foodName, food_price: foodPrice, stock, type } = req.body;
 
-    if (!foodName || !foodPrice || stock === undefined || stock === "") {
+    if (!foodName || !foodPrice || !type || stock === undefined || stock === "") {
       setFlash(req, "All fields are required.");
       return res.redirect("/add-food");
     }
     if (foodId) {
       await pool.query(
-        "UPDATE Food SET Food_Name = ?, Food_Price = ?, Stock_Quantity = ? WHERE Food_ID = ?",
-        [foodName, foodPrice, stock, foodId],
+        "UPDATE Food SET Food_Name = ?, Food_Price = ?, Stock_Quantity = ?, Type = ? WHERE Food_ID = ?",
+        [foodName, foodPrice, stock, type, foodId],
       );
-      setFlash(req, "Food updated.");
+      setFlash(req, "Item updated.");
     } else {
       await pool.query(
-        "INSERT INTO Food (Food_Name, Food_Price, Stock_Quantity) VALUES (?, ?, ?)",
-        [foodName, foodPrice, stock],
+        "INSERT INTO Food (Food_Name, Food_Price, Stock_Quantity, Type) VALUES (?, ?, ?, ?)",
+        [foodName, foodPrice, stock, type],
       );
-      setFlash(req, "Food added.");
+      setFlash(req, "Item added.");
     }
     res.redirect("/add-food");
   }));
@@ -135,7 +145,7 @@ function registerCafeRoutes(app, { pool }) {
     const idToDelete = req.body.food_id;
 
     await pool.query("DELETE FROM Food WHERE Food_ID = ?", [idToDelete]);
-    setFlash(req, "Food item deleted.");
+    setFlash(req, "Café item deleted.");
     res.redirect("/add-food");
   }));
 
@@ -189,7 +199,7 @@ function registerCafeRoutes(app, { pool }) {
     `).join("");
 
     res.send(renderPage({
-      title: "Add Food Sale",
+      title: "Add Café Sale",
       user: req.session.user,
       content: `
       <section class="card narrow">
@@ -210,7 +220,7 @@ function registerCafeRoutes(app, { pool }) {
       </section>
 
       <section class="card narrow">
-        <h1>${editSale ? "Edit Food Sale" : "Add Food Sale"}</h1>
+        <h1>${editSale ? "Edit Café Sale" : "Add Café Sale"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-food-sale" class="form-grid">
         ${editSale ? `<input type="hidden" name="sale_id" value="${editSale.Food_Sale_ID}">` : ""}
@@ -224,7 +234,7 @@ function registerCafeRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
-        <h2>Recent Food Sales</h2>
+        <h2>Recent Café Sales</h2>
         <table>
           <thead>
             <tr>
@@ -234,7 +244,7 @@ function registerCafeRoutes(app, { pool }) {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>${saleRows || '<tr><td colspan="4">No food sales found.</td></tr>'}</tbody>
+          <tbody>${saleRows || '<tr><td colspan="4">No café sales found.</td></tr>'}</tbody>
         </table>
       </section>
     `,
@@ -256,7 +266,7 @@ function registerCafeRoutes(app, { pool }) {
       [saleDate, saleId],
     );
 
-    setFlash(req, "Food sale updated.");
+    setFlash(req, "Café sale updated.");
     return res.redirect("/add-food-sale-line");
   } else {
       let employeeId = req.session.user.employeeId;
@@ -286,7 +296,7 @@ function registerCafeRoutes(app, { pool }) {
 
     await pool.query("DELETE FROM Food_Sale_Line WHERE Food_Sale_ID = ?", [saleId]);
     await pool.query("DELETE FROM Food_Sale WHERE Food_Sale_ID = ?", [saleId]);
-    setFlash(req, "Food sale deleted.");
+    setFlash(req, "Café sale deleted.");
     res.redirect("/add-food-sale");
   }));
 
@@ -362,7 +372,7 @@ function registerCafeRoutes(app, { pool }) {
           <form method="post" action="/add-food-sale-line" class="form-grid">
           ${editLine ? `<input type="hidden" name="original_food" value="${editLine.Food_ID}">` : ""}
           <input type="hidden" name="sale_id" value="${currentSaleId}">
-          <label>Food
+          <label>Café Item
             <select name="food_id">
               ${foods.map((food) => `<option value="${food.Food_ID}">${escapeHtml(food.Food_Name)} ($${food.Food_Price})</option>`).join("")}
             </select>
@@ -370,7 +380,7 @@ function registerCafeRoutes(app, { pool }) {
           <label>Quantity<input type="number" name="quantity" 
           value="${editLine ? editLine.Quantity : ""}" required></label>
           <button class="button" type="submit">
-              ${editLine ? "Update Food" : "Add Food"}
+              ${editLine ? "Update Item" : "Add Item"}
             </button>
           </form>
         `}
@@ -381,7 +391,7 @@ function registerCafeRoutes(app, { pool }) {
           <thead>
             <tr>
               <th>Sale ID</th>
-              <th>Food</th>
+              <th>Item</th>
               <th>Qty</th>
               <th>Price</th>
               <th>Actions</th>
@@ -411,7 +421,7 @@ function registerCafeRoutes(app, { pool }) {
         WHERE Food_Sale_ID = ? AND Food_ID = ?`,
         [quantity, saleId, original_food],
     );
-      setFlash(req, "Food sale line updated.");
+      setFlash(req, "Order item updated.");
   } else {
     try {
       await pool.query(
@@ -419,7 +429,7 @@ function registerCafeRoutes(app, { pool }) {
          VALUES (?, ?, ?, ?)`,
         [saleId, foodId, quantity, food.Food_Price],
       );
-      setFlash(req, "Food added to sale.");
+      setFlash(req, "Item added to order.");
     } catch (err) {
       if (err.sqlState === "45000") {
         await logTriggerViolation(pool, req, err.sqlMessage);
@@ -444,7 +454,7 @@ function registerCafeRoutes(app, { pool }) {
   }));
 
   app.get("/order", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
-    const [foods] = await pool.query("SELECT Food_ID, Food_Name, Food_Price, Stock_Quantity FROM Food");
+    const [foods] = await pool.query("SELECT Food_ID, Food_Name, Type, Food_Price, Stock_Quantity FROM Food");
     const cart = req.session.cart || [];
     const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
 
@@ -457,6 +467,7 @@ function registerCafeRoutes(app, { pool }) {
       return `
         <tr>
           <td>${escapeHtml(food.Food_Name)}</td>
+          <td>${escapeHtml(food.Type || "—")}</td>
           <td>$${Number(food.Food_Price).toFixed(2)}</td>
           <td>${stockLabel}</td>
           <td>${food.Stock_Quantity > 0
@@ -492,8 +503,8 @@ function registerCafeRoutes(app, { pool }) {
         ${renderFlash(req)}
         <h2>Menu</h2>
         <table>
-          <thead><tr><th>Item</th><th>Price</th><th>Stock</th><th></th></tr></thead>
-          <tbody>${menuRows || '<tr><td colspan="4">No food items available.</td></tr>'}</tbody>
+          <thead><tr><th>Item</th><th>Type</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+          <tbody>${menuRows || '<tr><td colspan="5">No café items available.</td></tr>'}</tbody>
         </table>
       </section>
       <section class="card narrow">

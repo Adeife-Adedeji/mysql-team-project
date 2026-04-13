@@ -9,21 +9,21 @@ const {
   logTriggerViolation
 } = require("../helpers");
 
+const ART_STYLES = [
+  "Abstract", "Baroque", "Contemporary", "Cubism", "Expressionism", 
+  "Impressionism", "Modern", "Neoclassicism", "Pop Art", "Post-Impressionism", 
+  "Realism", "Renaissance", "Romanticism", "Surrealism", "Symbolism"
+];
+
+const ART_TYPES = [
+  "Painting", "Sculpture", "Photograph", "Drawing", "Print", 
+  "Installation", "Video Art", "Textile", "Ceramic", "Digital Art"
+];
+
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const [artists] = await pool.query("SELECT Artist_ID, Artist_Name FROM Artist");
-    const [styleOptions] = await pool.query(`
-      SELECT DISTINCT Art_Style
-      FROM Artwork
-      WHERE Art_Style IS NOT NULL AND TRIM(Art_Style) <> ''
-      ORDER BY Art_Style
-    `);
-    const [periodOptions] = await pool.query(`
-      SELECT DISTINCT Time_Period
-      FROM Artwork
-      WHERE Time_Period IS NOT NULL AND TRIM(Time_Period) <> ''
-      ORDER BY Time_Period
-    `);
+    
     if (artists.length === 0) {
       setFlash(req, "Please add an artist first.");
       return res.redirect("/add-artist");
@@ -80,29 +80,29 @@ function registerArtworkRoutes (app, { pool }) {
           </label>
           <label>
             Type
-            <input type="text" name="type" value="${editArtwork ? escapeHtml(editArtwork.Type) : ""}" required>
+            <select name="type" required>
+              <option value="">Select a type</option>
+              ${ART_TYPES.map((type) => `
+                <option value="${escapeHtml(type)}" ${editArtwork && editArtwork.Type === type ? "selected" : ""}>
+                  ${escapeHtml(type)}
+                </option>
+              `).join("")}
+            </select>
           </label>
           <label>
             Style
             <select name="art_style">
               <option value="">Select a style</option>
-              ${styleOptions.map((style) => `
-                <option value="${escapeHtml(style.Art_Style)}" ${editArtwork && editArtwork.Art_Style === style.Art_Style ? "selected" : ""}>
-                  ${escapeHtml(style.Art_Style)}
+              ${ART_STYLES.map((style) => `
+                <option value="${escapeHtml(style)}" ${editArtwork && editArtwork.Art_Style === style ? "selected" : ""}>
+                  ${escapeHtml(style)}
                 </option>
               `).join("")}
             </select>
           </label>
           <label>
             Period
-            <select name="time_period">
-              <option value="">Select a period</option>
-              ${periodOptions.map((period) => `
-                <option value="${escapeHtml(period.Time_Period)}" ${editArtwork && editArtwork.Time_Period === period.Time_Period ? "selected" : ""}>
-                  ${escapeHtml(period.Time_Period)}
-                </option>
-              `).join("")}
-            </select>
+            <input type="text" name="time_period" value="${editArtwork ? escapeHtml(editArtwork.Time_Period || "") : ""}" placeholder="e.g. 1601-1650">
           </label>
           <label>Artist
             <select name="artist_id" required>
@@ -131,7 +131,7 @@ function registerArtworkRoutes (app, { pool }) {
             </tr>
           </thead>
           <tbody>
-            ${artworkRows || '<tr><td colspan="5">No artworks found.</td></tr>'}
+            ${artworkRows || '<tr><td colspan="6">No artworks found.</td></tr>'}
           </tbody>
         </table>
       </section>
