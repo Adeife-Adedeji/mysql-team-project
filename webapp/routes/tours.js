@@ -13,9 +13,6 @@ const {
 
 function registerToursRoutes(app, { pool }) {
 
-  // GET /tours  (Supervisor view)
-  // Shows a form to create a new tour and a table of all tours.
-  // Access: supervisor only
   
   app.get("/tours", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const [employees] = await pool.query(`
@@ -152,8 +149,6 @@ function registerToursRoutes(app, { pool }) {
   }));
 
 
-  // POST /tours
-  // Creates a new Tour record.
   app.post("/tours", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const {
       tour_name: tourName,
@@ -189,16 +184,12 @@ function registerToursRoutes(app, { pool }) {
   }));
 
 
-  // POST /delete-tour
-  // Deletes a tour. ON DELETE CASCADE in Tour_Registration means
-  // all registrations for this tour are automatically removed too.
   app.post("/delete-tour", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const { tour_id: tourId } = req.body;
     if (!tourId) {
       setFlash(req, "No tour ID provided.");
       return res.redirect("/tours");
     }
-    // Registrations are removed automatically via ON DELETE CASCADE
     await pool.query("DELETE FROM Tour WHERE Tour_ID = ?", [tourId]);
     setFlash(req, "Tour and all its registrations deleted.");
     res.redirect("/tours");
@@ -291,9 +282,6 @@ function registerToursRoutes(app, { pool }) {
     }));
   }));
 
-
-  // POST /tours/remove-registration  (Supervisor)
-  // Removes a single member from a tour (supervisor use only).
   app.post("/tours/remove-registration", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const { registration_id: regId, tour_id: tourId } = req.body;
     if (!regId) {
@@ -471,10 +459,8 @@ function registerToursRoutes(app, { pool }) {
       setFlash(req, "You are registered for the tour!");
     } catch (err) {
       if (err.code === "ER_DUP_ENTRY") {
-        // UNIQUE (Tour_ID, Membership_ID) constraint fired
         setFlash(req, "You are already registered for this tour.");
       } else if (err.sqlState === "45000") {
-        // trigger_check_tour_capacity fired
         await logTriggerViolation(pool, req, err.sqlMessage);
         setFlash(req, err.sqlMessage);
       } else {

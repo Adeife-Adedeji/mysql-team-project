@@ -12,12 +12,6 @@ const {
 
 function registerConservationRoutes(app, { pool }) {
 
-  // GET /condition-reports
-  // Shows:
-  //   1. A form to file a new condition report for any artwork
-  //   2. A table of all artworks showing their lastest condition
-  // Access: supervisor only
-  // ---------------------------------------------------------------
   app.get("/condition-reports", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
 
     const [artworks] = await pool.query(`

@@ -12,7 +12,6 @@ function registerQueriesRoutes(app, { pool }) {
     const isSuper = user.role === "supervisor";
     const isEmp = user.role === "employee" || user.role === "cafe" || user.role === "giftshop" || user.role === "admissions";
 
-    // 1. Artwork Status Query (Where is it?)
     const artworkStatusSearch = req.query.artwork_status?.trim() || null;
     const locationSearch = req.query.location?.trim() || null;
     const conditionSearch = req.query.condition?.trim() || null;
@@ -69,7 +68,6 @@ function registerQueriesRoutes(app, { pool }) {
       [artworkStatusSearch, artworkStatusSearch, locationSearch, locationSearch, conditionSearch, conditionSearch]
     );
 
-    // 2. Staff & Exhibition Assignment Query
     const staffExhibitionSearch = req.query.staff_exhibition?.trim() || null;
     const [staffExhibitionResults] = await pool.query(
       `SELECT EX.Exhibition_Name, 

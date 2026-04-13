@@ -223,7 +223,7 @@ function registerCafeRoutes(app, { pool }) {
           </div>
         </div>
         ${bestSeller.length
-          ? `<p style="color:#555;">🏆 Best seller today: <strong>${escapeHtml(bestSeller[0].Food_Name)}</strong> (${bestSeller[0].total_qty} sold)</p>`
+          ? `<p style="color:#555;"> Best seller today: <strong>${escapeHtml(bestSeller[0].Food_Name)}</strong> (${bestSeller[0].total_qty} sold)</p>`
           : `<p style="color:#888;">No sales recorded today yet.</p>`}
       </section>
 
@@ -511,7 +511,15 @@ function registerCafeRoutes(app, { pool }) {
         ${renderFlash(req)}
         <h2>Menu</h2>
         <table>
-          <thead><tr><th>Item</th><th>Type</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Type</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>${menuRows || '<tr><td colspan="5">No café items available.</td></tr>'}</tbody>
         </table>
       </section>
@@ -520,7 +528,15 @@ function registerCafeRoutes(app, { pool }) {
         ${cart.length === 0
           ? '<p style="color:#888;">No items in cart yet.</p>'
           : `<table>
-              <thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Price</th>
+                  <th>Qty</th>
+                  <th>Subtotal</th>
+                  <th></th>
+                </tr>
+              </thead>
               <tbody>${cartRows}</tbody>
               <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${cartTotal.toFixed(2)}</strong></td><td></td></tr></tfoot>
              </table>
@@ -562,7 +578,14 @@ function registerCafeRoutes(app, { pool }) {
         <h1>Order Summary</h1>
         ${renderFlash(req)}
         <table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
           <tbody>${itemRows}</tbody>
           <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${total.toFixed(2)}</strong></td></tr></tfoot>
         </table>
