@@ -4,6 +4,9 @@ USE museumdb;
 
 DELIMITER $$
 
+-- Report: Artwork By Artist
+-- Lists all artwork in the museum categorized by the artist who created it.
+-- Joins Artist and Artwork tables to provide a full inventory of the museum's collection.
 DROP PROCEDURE IF EXISTS ReportArtworkByArtist$$
 CREATE PROCEDURE ReportArtworkByArtist()
 BEGIN
@@ -20,6 +23,9 @@ BEGIN
     ORDER BY AR.Artist_Name, AW.Title;
 END$$
 
+-- Report: Employee By Department
+-- Shows the organizational hierarchy and departmental distribution of staff.
+-- Joins Employee with Department and self-joins Employee to link staff to their supervisors.
 DROP PROCEDURE IF EXISTS ReportEmployeeByDepartment$$
 CREATE PROCEDURE ReportEmployeeByDepartment()
 BEGIN
@@ -41,6 +47,9 @@ BEGIN
     ORDER BY D.Department_Name, E.Last_Name, E.First_Name;
 END$$
 
+-- Report: Ticket Sales
+-- Provides a detailed log of museum admissions and revenue from ticket sales.
+-- Joins Ticket, Ticket_Line, and Exhibition to track which shows are driving sales.
 DROP PROCEDURE IF EXISTS ReportTicketSales$$
 CREATE PROCEDURE ReportTicketSales()
 BEGIN
@@ -68,6 +77,9 @@ BEGIN
     ORDER BY T.Purchase_Date DESC, T.Ticket_ID;
 END$$
 
+-- Report: Artwork Condition Tracking
+-- Lists the most recent health status of all art pieces to prioritize restoration.
+-- Uses a subquery to find the latest condition report for each piece of artwork.
 DROP PROCEDURE IF EXISTS ReportArtworkConditions$$
 CREATE PROCEDURE ReportArtworkConditions()
 BEGIN
@@ -96,6 +108,9 @@ BEGIN
         AW.Title;
 END$$
 
+-- Report: Active Artwork Loans
+-- Tracks all art currently on loan to or from other institutions.
+-- Filters for 'Active' status and joins with Institution and Employee for logistical tracking.
 DROP PROCEDURE IF EXISTS ReportActiveLoans$$
 CREATE PROCEDURE ReportActiveLoans()
 BEGIN
@@ -121,10 +136,9 @@ END$$
 
 DELIMITER ;
 
--- =============================================================================
--- SQL VIEW: Consolidated_Revenue
--- Aggregates daily revenue from Tickets, Gift Shop, and Cafe.
--- =============================================================================
+-- View: Consolidated Revenue
+-- Combines daily income from admissions, gift shop sales, and cafe transactions.
+-- Uses UNION ALL to aggregate separate revenue streams into a single daily total.
 CREATE OR REPLACE VIEW Consolidated_Revenue AS
 SELECT 
     d.Sale_Date,

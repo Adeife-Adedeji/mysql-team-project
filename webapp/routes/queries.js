@@ -12,6 +12,9 @@ function registerQueriesRoutes(app, { pool }) {
     const isSuper = user.role === "supervisor";
     const isEmp = user.role === "employee" || user.role === "cafe" || user.role === "giftshop" || user.role === "admissions";
 
+    // -- Query: Artwork Status & Tracking
+    // -- Tracks where art is currently located: exhibition, loan, or storage.
+    // -- Joins Artwork with active Loans and current Exhibitions to find the most recent spot and condition report.
     const artworkStatusSearch = req.query.artwork_status?.trim() || null;
     const locationSearch = req.query.location?.trim() || null;
     const conditionSearch = req.query.condition?.trim() || null;
@@ -68,6 +71,9 @@ function registerQueriesRoutes(app, { pool }) {
       [artworkStatusSearch, artworkStatusSearch, locationSearch, locationSearch, conditionSearch, conditionSearch]
     );
 
+    // -- Query: Staff & Exhibition Assignment
+    // -- Finds which employees are assigned to which exhibitions for upcoming shifts.
+    // -- Joins Exhibition, Schedule, and Employee to list active assignments.
     const staffExhibitionSearch = req.query.staff_exhibition?.trim() || null;
     const [staffExhibitionResults] = await pool.query(
       `SELECT EX.Exhibition_Name, 
@@ -94,6 +100,9 @@ function registerQueriesRoutes(app, { pool }) {
     const categorySearch = req.query.category?.trim() || null;
     const maxPrice = req.query.max_price?.trim() || null;
 
+    // -- Query: General Artwork Search
+    // -- Allows visitors to find art by artist, style, title, type, or time period.
+    // -- Joins Artwork and Artist tables to provide a comprehensive searchable list.
     const [artworkResults] = await pool.query(
       `SELECT AW.Title, AW.Type, AW.Art_Style, AW.Time_Period, AR.Artist_Name
        FROM Artwork AW
@@ -114,6 +123,9 @@ function registerQueriesRoutes(app, { pool }) {
       ],
     );
 
+    // -- Query: Exhibition Date Range
+    // -- Finds exhibitions that are active within a specific timeframe.
+    // -- Filters by comparing Starting_Date and Ending_Date against user-provided range.
     const [exhibitionResults] = await pool.query(
       `SELECT Exhibition_Name, Starting_Date, Ending_Date
        FROM Exhibition
@@ -124,6 +136,9 @@ function registerQueriesRoutes(app, { pool }) {
       [startDate, startDate, endDate, endDate],
     );
 
+    // -- Query: Gift Shop Inventory
+    // -- Finds gift shop items by category or maximum price threshold.
+    // -- Filters the Gift_Shop_Item table for inventory management and browsing.
     const [inventoryResults] = await pool.query(
       `SELECT Name_of_Item, Category, Price_of_Item, Stock_Quantity
        FROM Gift_Shop_Item
