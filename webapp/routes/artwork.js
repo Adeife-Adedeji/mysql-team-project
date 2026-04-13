@@ -12,6 +12,18 @@ const {
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const [artists] = await pool.query("SELECT Artist_ID, Artist_Name FROM Artist");
+    const [styleOptions] = await pool.query(`
+      SELECT DISTINCT Art_Style
+      FROM Artwork
+      WHERE Art_Style IS NOT NULL AND TRIM(Art_Style) <> ''
+      ORDER BY Art_Style
+    `);
+    const [periodOptions] = await pool.query(`
+      SELECT DISTINCT Time_Period
+      FROM Artwork
+      WHERE Time_Period IS NOT NULL AND TRIM(Time_Period) <> ''
+      ORDER BY Time_Period
+    `);
     if (artists.length === 0) {
       setFlash(req, "Please add an artist first.");
       return res.redirect("/add-artist");
@@ -72,11 +84,25 @@ function registerArtworkRoutes (app, { pool }) {
           </label>
           <label>
             Style
-            <input type="text" name="art_style" value="${editArtwork ? escapeHtml(editArtwork.Art_Style) : ""}" placeholder="e.g. Abstract">
+            <select name="art_style">
+              <option value="">Select a style</option>
+              ${styleOptions.map((style) => `
+                <option value="${escapeHtml(style.Art_Style)}" ${editArtwork && editArtwork.Art_Style === style.Art_Style ? "selected" : ""}>
+                  ${escapeHtml(style.Art_Style)}
+                </option>
+              `).join("")}
+            </select>
           </label>
           <label>
             Period
-            <input type="text" name="time_period" value="${editArtwork ? escapeHtml(editArtwork.Time_Period) : ""}" placeholder="e.g. Renaissance">
+            <select name="time_period">
+              <option value="">Select a period</option>
+              ${periodOptions.map((period) => `
+                <option value="${escapeHtml(period.Time_Period)}" ${editArtwork && editArtwork.Time_Period === period.Time_Period ? "selected" : ""}>
+                  ${escapeHtml(period.Time_Period)}
+                </option>
+              `).join("")}
+            </select>
           </label>
           <label>Artist
             <select name="artist_id" required>

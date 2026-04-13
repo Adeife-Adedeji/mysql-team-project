@@ -1,6 +1,7 @@
+USE museumdb;
+
 -- event and tour registrations
 
---@block
 INSERT INTO event_registration (Registration_Date, Event_ID, Membership_ID, Ticket_ID, Created_By, Created_At, Updated_By, Updated_At) VALUES
 ('2026-04-01', 1, 2, 1, 'system', CURDATE(), 'system', CURDATE()),
 ('2026-04-01', 1, 3, 2, 'system', CURDATE(), 'system', CURDATE()),
@@ -13,8 +14,7 @@ INSERT INTO event_registration (Registration_Date, Event_ID, Membership_ID, Tick
 ('2026-04-20', 3, 3, 2, 'system', CURDATE(), 'system', CURDATE()),
 ('2026-05-01', 6, 4, 3, 'system', CURDATE(), 'system', CURDATE());
 
---@block
---
+-- tour registrations
 INSERT INTO Tour_Registration (Tour_ID, Membership_ID, Registration_Date, Created_By, Created_At) VALUES
 (1, 2, '2026-04-01', 'system', CURDATE()),
 (1, 3, '2026-04-02', 'system', CURDATE()),
