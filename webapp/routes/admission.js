@@ -58,7 +58,11 @@ function registerAdmissionRoutes(app, { pool }) {
         <form id="ticket-form" method="post" action="/add-ticket" class="form-grid">
           ${editTicket ? `<input type="hidden" name="ticket_id" value="${editTicket.Ticket_ID}">` : ""}
           <label>Purchase Type
-            <input type="text" name="type" value="${editTicket ? escapeHtml(editTicket.Purchase_type || "") : ""}" required>
+            <select name="type" required>
+              <option value="In-Person" ${editTicket && editTicket.Purchase_type === 'In-Person' ? 'selected' : ''}>In-Person</option>
+              <option value="Walk-up" ${editTicket && editTicket.Purchase_type === 'Walk-up' ? 'selected' : ''}>Walk-up</option>
+              <option value="Online" ${editTicket && editTicket.Purchase_type === 'Online' ? 'selected' : ''}>Online</option>
+            </select>
           </label>
           <label>Purchase Date
             <input type="date" name="purchase_date" value="${editTicket ? formatDateInput(editTicket.Purchase_Date) : ""}" required>
