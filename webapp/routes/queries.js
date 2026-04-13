@@ -12,7 +12,9 @@ function registerQueriesRoutes(app, { pool }) {
     const isSuper = user.role === "supervisor";
     const isEmp = user.role === "employee" || user.role === "cafe" || user.role === "giftshop" || user.role === "admissions";
 
-    // 1. Artwork Status Query (Where is it?)
+    // -- Artwork Status Query (Where is it?)
+    // -- Tracking where art is: exhibition, loan, or storage.
+    // -- Joins Artwork with Loans and Exhibitions to find the most recent spot and condition report.
     const artworkStatusSearch = req.query.artwork_status?.trim() || null;
     const locationSearch = req.query.location?.trim() || null;
     const conditionSearch = req.query.condition?.trim() || null;
@@ -139,6 +141,8 @@ function registerQueriesRoutes(app, { pool }) {
     const [giftCategories] = await pool.query("SELECT DISTINCT Category FROM Gift_Shop_Item WHERE Category IS NOT NULL ORDER BY Category");
 
     const cafeTypeSearch = req.query.cafe_type?.trim() || null;
+    // -- Café Inventory
+    // -- See what is on the menu. Filters by item type (Food, Drink, etc.) to list current café availability.
     const [cafeResults] = await pool.query(
       `SELECT Food_Name, Type, Food_Price, Stock_Quantity
        FROM Food

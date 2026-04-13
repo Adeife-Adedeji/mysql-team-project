@@ -50,6 +50,9 @@ function registerReportsRoutes(app, { pool }) {
       [department, department],
     );
 
+    // -- Revenue by Exhibition
+    // -- Which show is making the most?
+    // -- Connects Exhibition records to Ticket_Line to sum up ticket revenue per event.
     const [exhibitionRevenueRows] = await pool.query(
       `SELECT COALESCE(EX.Exhibition_Name, 'General Admission') AS Exhibition_Name,
               SUM(TL.Quantity) AS Tickets_Sold,
@@ -65,6 +68,9 @@ function registerReportsRoutes(app, { pool }) {
       [revenueStart, revenueStart, revenueEnd, revenueEnd],
     );
 
+    // -- Gift Shop Sales Summary
+    // -- What is selling in the shop?
+    // -- Aggregates Gift_Shop_Sale_Line items to show units sold and total cash per item.
     const [giftSalesRows] = await pool.query(
       `SELECT GSI.Name_of_Item,
               SUM(GSL.Quantity) AS Units_Sold,
@@ -153,6 +159,9 @@ function registerReportsRoutes(app, { pool }) {
       [attendanceStart, attendanceStart, attendanceEnd, attendanceEnd],
     );
 
+    // -- Tour Attendance
+    // -- Tour signup tracking.
+    // -- Similar to events, joins Tour_Registration to see how many spots are left on tours.
     const [tourAttendanceRows] = await pool.query(
       `SELECT T.Tour_ID,
               T.Tour_Name,
@@ -170,6 +179,9 @@ function registerReportsRoutes(app, { pool }) {
       [attendanceStart, attendanceStart, attendanceEnd, attendanceEnd],
     );
 
+    // -- Employee Schedule Report
+    // -- The weekly work plan.
+    // -- Joins Schedule with Employees and Exhibitions to show shift times and assigned duties.
     const [scheduleRows] = await pool.query(
       `SELECT S.Shift_Date,
               S.Start_Time,
@@ -555,3 +567,10 @@ function registerReportsRoutes(app, { pool }) {
 }
 
 module.exports = { registerReportsRoutes };
+
+
+
+tes };
+
+
+
