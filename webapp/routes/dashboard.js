@@ -122,7 +122,7 @@ function registerDashboardRoutes(app, { pool }) {
         <section class="card narrow dashboard-card">
           <p class="eyebrow">Museum Café</p>
           <h1>Welcome, ${escapeHtml(user.name.split(" ")[0])}</h1>
-          <p class="dashboard-intro">Process café orders and add food items to each transaction.</p>
+          <p class="dashboard-intro">Process café orders and add café items to each transaction.</p>
           <dl class="details dashboard-details">
             <div class="detail-item"><dt>Name</dt><dd>${escapeHtml(user.name)}</dd></div>
             <div class="detail-item"><dt>Email</dt><dd>${escapeHtml(user.email)}</dd></div>
