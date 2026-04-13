@@ -2,7 +2,10 @@ const {
   asyncHandler,
   escapeHtml,
   formatDateInput,  
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -11,6 +14,7 @@ const {
 
 function registerEmployeeRoutes(app, { pool }) {
   app.get("/add-employee", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const employeePage = getPageNumber(req.query.employee_page);
     const [employees] = await pool.query(
       "SELECT Employee_ID, First_Name, Last_Name, Employee_Role, Department_ID FROM Employee"
     );
@@ -27,7 +31,8 @@ function registerEmployeeRoutes(app, { pool }) {
       editEmployee = rows[0] || null;
     }
 
-    const employeeRows = employees.map((emp) => `
+    const employeePagination = paginateRows(employees, employeePage);
+    const employeeRows = employeePagination.items.map((emp) => `
       <tr>
         <td>${emp.Employee_ID}</td>
         <td>${escapeHtml(emp.First_Name)} ${escapeHtml(emp.Last_Name)}</td>
@@ -115,6 +120,7 @@ function registerEmployeeRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="employee-list"></div>
         <h2>Current Employees</h2>
         <table>
           <thead>
@@ -129,6 +135,7 @@ function registerEmployeeRoutes(app, { pool }) {
             ${employeeRows || '<tr><td colspan="4">No employees found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "employee_page", employeePagination, "employee-list")}
       </section>
     `,
     }));

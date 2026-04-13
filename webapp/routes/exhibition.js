@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -13,6 +16,7 @@ const {
 
 function registerExhibitionRoutes(app, { pool }) {
   app.get("/add-exhibition", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const exhibitionPage = getPageNumber(req.query.exhibition_page);
     const [exhibitions] = await pool.query(
       "SELECT Exhibition_ID, Exhibition_Name, Starting_Date, Ending_Date FROM Exhibition",
     );
@@ -26,7 +30,8 @@ function registerExhibitionRoutes(app, { pool }) {
       editExhibition = rows[0] || null;
     }
 
-    const exhibitionRows = exhibitions.map((exhibition) => `
+    const exhibitionPagination = paginateRows(exhibitions, exhibitionPage);
+    const exhibitionRows = exhibitionPagination.items.map((exhibition) => `
       <tr>
         <td>${exhibition.Exhibition_ID}</td>
         <td>${escapeHtml(exhibition.Exhibition_Name)}</td>
@@ -67,6 +72,7 @@ function registerExhibitionRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="exhibition-list"></div>
         <h2>Current Exhibitions</h2>
         <table>
           <thead>
@@ -82,6 +88,7 @@ function registerExhibitionRoutes(app, { pool }) {
             ${exhibitionRows || '<tr><td colspan="5">No exhibitions found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "exhibition_page", exhibitionPagination, "exhibition-list")}
       </section>
     `,
     }));
@@ -133,6 +140,7 @@ function registerExhibitionRoutes(app, { pool }) {
   }));
 
   app.get("/add-exhibition-artwork", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const linkPage = getPageNumber(req.query.link_page);
     const [exhibitions] = await pool.query("SELECT Exhibition_ID, Exhibition_Name FROM Exhibition");
     const [artworks] = await pool.query("SELECT Artwork_ID, Title FROM Artwork");
 
@@ -153,7 +161,8 @@ function registerExhibitionRoutes(app, { pool }) {
       JOIN Artwork a ON ea.Artwork_ID = a.Artwork_ID
     `);
 
-    const linkRows = links.map((link) => `
+    const linkPagination = paginateRows(links, linkPage);
+    const linkRows = linkPagination.items.map((link) => `
       <tr>
         <td>${escapeHtml(link.Exhibition_Name)}</td>
         <td>${escapeHtml(link.Title)}</td>
@@ -214,6 +223,7 @@ function registerExhibitionRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="exhibition-artwork-list"></div>
         <h2>Currently Linked Artwork</h2>
         <table>
           <thead>
@@ -229,6 +239,7 @@ function registerExhibitionRoutes(app, { pool }) {
             ${linkRows || '<tr><td colspan="5">No links found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "link_page", linkPagination, "exhibition-artwork-list")}
       </section>
     `,
     }));

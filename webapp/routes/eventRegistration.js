@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -13,6 +16,7 @@ const {
 
 function registerEventRegistrationRoutes(app, { pool }) {
   app.get("/add-event-registration", requireLogin, allowRoles(["employee", "supervisor"]), asyncHandler(async (req, res) => {
+    const registrationPage = getPageNumber(req.query.registration_page);
     const [events] = await pool.query(
       "SELECT event_ID, event_Name FROM Event ORDER BY start_Date DESC"
     );
@@ -40,7 +44,8 @@ function registerEventRegistrationRoutes(app, { pool }) {
       editReg = rows[0] || null;
     }
 
-    const regRows = registrations.map((reg) => `
+    const registrationPagination = paginateRows(registrations, registrationPage);
+    const regRows = registrationPagination.items.map((reg) => `
       <tr>
         <td>${reg.Event_Registration_ID}</td>
         <td>${escapeHtml(reg.event_Name)}</td>
@@ -106,6 +111,7 @@ function registerEventRegistrationRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="registration-list"></div>
         <h2>Current Registrations</h2>
         <table>
           <thead>
@@ -122,6 +128,7 @@ function registerEventRegistrationRoutes(app, { pool }) {
             ${regRows || '<tr><td colspan="6">No registrations found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "registration_page", registrationPagination, "registration-list")}
       </section>
     `,
     }));

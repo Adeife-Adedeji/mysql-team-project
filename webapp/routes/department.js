@@ -1,7 +1,10 @@
 const {
   asyncHandler,
   escapeHtml,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -10,6 +13,7 @@ const {
 
 function registerDepartmentRoutes(app, { pool }) {
   app.get("/add-department", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const departmentPage = getPageNumber(req.query.department_page);
     const [departments] = await pool.query(
       "SELECT Department_ID, Department_Name, Manager_ID FROM Department"
     );
@@ -26,7 +30,8 @@ function registerDepartmentRoutes(app, { pool }) {
       editDepartment = rows[0] || null;
     }
 
-    const departmentRows = departments.map((dept) => {
+    const departmentPagination = paginateRows(departments, departmentPage);
+    const departmentRows = departmentPagination.items.map((dept) => {
       const manager = employees.find(e => e.Employee_ID === dept.Manager_ID);
       return `
         <tr>
@@ -73,6 +78,7 @@ function registerDepartmentRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="department-list"></div>
         <h2>Current Departments</h2>
         <table>
           <thead>
@@ -87,6 +93,7 @@ function registerDepartmentRoutes(app, { pool }) {
             ${departmentRows || '<tr><td colspan="4">No departments found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "department_page", departmentPagination, "department-list")}
       </section>
     `,
     }));

@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -14,6 +17,7 @@ const {
 function registerAdmissionRoutes(app, { pool }) {
   
   app.get("/add-ticket", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const ticketPage = getPageNumber(req.query.ticket_page);
     const [tickets] = await pool.query(
       "SELECT Ticket_ID, Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number FROM Ticket ORDER BY Ticket_ID DESC"
     );
@@ -27,7 +31,8 @@ function registerAdmissionRoutes(app, { pool }) {
       editTicket = rows[0] || null;
     }
 
-    const ticketRows = tickets.map((ticket) => `
+    const ticketPagination = paginateRows(tickets, ticketPage);
+    const ticketRows = ticketPagination.items.map((ticket) => `
       <tr>
         <td>${ticket.Ticket_ID}</td>
         <td>${escapeHtml(ticket.Purchase_type || "N/A")}</td>
@@ -80,6 +85,7 @@ function registerAdmissionRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="ticket-record-list"></div>
         <h2>All Ticket Records</h2>
         <table>
           <thead>
@@ -97,6 +103,7 @@ function registerAdmissionRoutes(app, { pool }) {
               ${ticketRows || '<tr><td colspan="7">No tickets found.</td></tr>'}
             </tbody>
           </table>
+        ${renderPager(req, "ticket_page", ticketPagination, "ticket-record-list")}
       </section>
     `,
     }));
@@ -153,6 +160,7 @@ function registerAdmissionRoutes(app, { pool }) {
   }));
 
   app.get("/add-ticket-line", requireLogin, allowRoles(["supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const ticketLinePage = getPageNumber(req.query.ticket_line_page);
     const [tickets] = await pool.query("SELECT Ticket_ID FROM Ticket ORDER BY Ticket_ID DESC");
     const [exhibitions] = await pool.query("SELECT Exhibition_ID, Exhibition_Name FROM Exhibition");
     const [lines] = await pool.query(`
@@ -171,7 +179,8 @@ function registerAdmissionRoutes(app, { pool }) {
       editLine = rows[0] || null;
     }
 
-    const lineRows = lines.map((line) => `
+    const ticketLinePagination = paginateRows(lines, ticketLinePage);
+    const lineRows = ticketLinePagination.items.map((line) => `
       <tr>
         <td>#${line.Ticket_ID}</td>
         <td>${escapeHtml(line.Ticket_Type)}</td>
@@ -231,6 +240,7 @@ function registerAdmissionRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="ticket-line-list"></div>
         <h2>Existing Line Items</h2>
         <table>
           <thead>
@@ -247,6 +257,7 @@ function registerAdmissionRoutes(app, { pool }) {
             ${lineRows || '<tr><td colspan="6">No lines found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "ticket_line_page", ticketLinePagination, "ticket-line-list")}
       </section>
     `,
     }));

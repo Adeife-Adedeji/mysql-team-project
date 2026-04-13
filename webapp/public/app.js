@@ -19,7 +19,7 @@
   }
 
   const animated = document.querySelectorAll(
-    ".hero-copy, .hero-visual, .overview-card, .dashboard-card, .dashboard-section, .notification-item, .auth-card, .card table, .card form"
+    ".hero-copy, .hero-visual, .overview-card, .dashboard-card, .dashboard-section, .notification-item, .auth-card"
   );
 
   animated.forEach((element, index) => {

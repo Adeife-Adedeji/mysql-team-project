@@ -99,6 +99,15 @@ function registerQueriesRoutes(app, { pool }) {
     const endDate = req.query.end_date?.trim() || null;
     const categorySearch = req.query.category?.trim() || null;
     const maxPrice = req.query.max_price?.trim() || null;
+    const [giftStockColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Gift_Shop_Item'
+         AND COLUMN_NAME = 'Stock_Quantity'
+       LIMIT 1`
+    );
+    const hasGiftStockColumn = giftStockColumns.length > 0;
 
     // -- Query: General Artwork Search
     // -- Allows visitors to find art by artist, style, title, type, or time period.
@@ -140,7 +149,7 @@ function registerQueriesRoutes(app, { pool }) {
     // -- Finds gift shop items by category or maximum price threshold.
     // -- Filters the Gift_Shop_Item table for inventory management and browsing.
     const [inventoryResults] = await pool.query(
-      `SELECT Name_of_Item, Category, Price_of_Item, Stock_Quantity
+      `SELECT Name_of_Item, Category, Price_of_Item, ${hasGiftStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
        FROM Gift_Shop_Item
        WHERE (? IS NULL OR Category = ?)
          AND (? IS NULL OR Price_of_Item <= ?)
@@ -152,13 +161,40 @@ function registerQueriesRoutes(app, { pool }) {
     const [giftCategories] = await pool.query("SELECT DISTINCT Category FROM Gift_Shop_Item WHERE Category IS NOT NULL ORDER BY Category");
 
     const cafeTypeSearch = req.query.cafe_type?.trim() || null;
+    const [foodTypeColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Food'
+         AND COLUMN_NAME = 'Type'
+       LIMIT 1`
+    );
+    const hasFoodTypeColumn = foodTypeColumns.length > 0;
+    const [foodStockColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Food'
+         AND COLUMN_NAME = 'Stock_Quantity'
+       LIMIT 1`
+    );
+    const hasFoodStockColumn = foodStockColumns.length > 0;
+    const cafeFilterSql = hasFoodTypeColumn
+      ? "(? IS NULL OR Type LIKE CONCAT('%', ?, '%'))"
+      : "(? IS NULL)";
+    const cafeFilterParams = hasFoodTypeColumn
+      ? [cafeTypeSearch, cafeTypeSearch]
+      : [cafeTypeSearch];
     const [cafeResults] = await pool.query(
-      `SELECT Food_Name, Type, Food_Price, Stock_Quantity
+      `SELECT Food_Name,
+              ${hasFoodTypeColumn ? "Type" : "NULL"} AS Type,
+              Food_Price,
+              ${hasFoodStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
        FROM Food
-       WHERE (? IS NULL OR Type LIKE CONCAT('%', ?, '%'))
-       ORDER BY Type, Food_Name
+       WHERE ${cafeFilterSql}
+       ORDER BY ${hasFoodTypeColumn ? "Type," : ""} Food_Name
        LIMIT 50`,
-      [cafeTypeSearch, cafeTypeSearch],
+      cafeFilterParams,
     );
 
     const artworkRows = artworkResults.map((artwork) => `
@@ -267,7 +303,14 @@ function registerQueriesRoutes(app, { pool }) {
         <h2>Exhibition Guides & Staffing</h2>
         <form method="get" action="/queries" class="form-grid">
           <label>Search Exhibition
-            <input type="text" name="staff_exhibition" value="${escapeHtml(staffExhibitionSearch ?? '')}" placeholder="Exhibition Name">
+            <select name="staff_exhibition">
+              <option value="">All Exhibitions</option>
+              ${allExhibitions.map((exhibition) => `
+                <option value="${escapeHtml(exhibition.Exhibition_Name)}" ${staffExhibitionSearch === exhibition.Exhibition_Name ? "selected" : ""}>
+                  ${escapeHtml(exhibition.Exhibition_Name)}
+                </option>
+              `).join("")}
+            </select>
           </label>
           <button class="button" type="submit">Find Guides</button>
         </form>

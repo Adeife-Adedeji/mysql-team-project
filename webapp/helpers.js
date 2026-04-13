@@ -104,6 +104,55 @@ function formatDisplayDate(value) {
   return date.toLocaleDateString();
 }
 
+function getPageNumber(rawValue) {
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function paginateRows(rows, page, pageSize = 10) {
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+
+  return {
+    items: rows.slice(startIndex, startIndex + pageSize),
+    currentPage,
+    totalPages,
+    totalRows,
+    pageSize,
+  };
+}
+
+function renderPager(req, pageParam, pagination, anchorId, basePath = req.path) {
+  if (pagination.totalRows <= pagination.pageSize) {
+    return "";
+  }
+
+  const buildHref = (page) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(req.query || {})) {
+      if (value === undefined || value === null || value === "") {
+        continue;
+      }
+      params.set(key, String(value));
+    }
+
+    params.set(pageParam, String(page));
+    return `${basePath}?${params.toString()}#${anchorId}`;
+  };
+
+  return `
+    <div class="pagination">
+      <span class="pagination__summary">Page ${pagination.currentPage} of ${pagination.totalPages} • ${pagination.totalRows} results</span>
+      <div class="button-row pagination__actions">
+        ${pagination.currentPage > 1 ? `<a class="button button-secondary button-small" href="${escapeHtml(buildHref(pagination.currentPage - 1))}">Previous</a>` : ""}
+        ${pagination.currentPage < pagination.totalPages ? `<a class="button button-secondary button-small" href="${escapeHtml(buildHref(pagination.currentPage + 1))}">Next</a>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function isStaff(user) {
   return isEmployee(user) || isSupervisor(user)
 }
@@ -157,11 +206,14 @@ module.exports = {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
   isEmployee,
   isMember,
   isStaff,
   isSupervisor,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,

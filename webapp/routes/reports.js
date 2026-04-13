@@ -2,7 +2,10 @@ const {
   asyncHandler,
   escapeHtml,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderPage,
+  renderPager,
   requireLogin,
   allowRoles
 } = require("../helpers");
@@ -25,6 +28,16 @@ function registerReportsRoutes(app, { pool }) {
     const attendanceEnd = req.query.attendance_end?.trim() || null;
     const scheduleStart = req.query.schedule_start?.trim() || null;
     const scheduleEnd = req.query.schedule_end?.trim() || null;
+    const consolidatedPage = getPageNumber(req.query.consolidated_page);
+    const ticketSalesPage = getPageNumber(req.query.ticket_sales_page);
+    const employeePage = getPageNumber(req.query.employee_page);
+    const revenuePage = getPageNumber(req.query.revenue_page);
+    const giftPage = getPageNumber(req.query.gift_page);
+    const cafePage = getPageNumber(req.query.cafe_page);
+    const membershipPage = getPageNumber(req.query.membership_page);
+    const eventAttendancePage = getPageNumber(req.query.event_attendance_page);
+    const tourAttendancePage = getPageNumber(req.query.tour_attendance_page);
+    const schedulePage = getPageNumber(req.query.schedule_page);
 
     const [ticketSalesRows] = await pool.query(
       `SELECT T.Visit_Date, TL.Ticket_Type, SUM(TL.Quantity) AS Tickets_Sold, SUM(TL.Total_sum_of_ticket) AS Revenue
@@ -91,8 +104,18 @@ function registerReportsRoutes(app, { pool }) {
       [giftStart, giftStart, giftEnd, giftEnd],
     );
 
+    const [foodTypeColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Food'
+         AND COLUMN_NAME = 'Type'
+       LIMIT 1`
+    );
+    const hasFoodTypeColumn = foodTypeColumns.length > 0;
+
     const [cafeSalesRows] = await pool.query(
-      `SELECT F.Food_Name, F.Type,
+      `SELECT F.Food_Name, ${hasFoodTypeColumn ? "F.Type" : "NULL"} AS Type,
               SUM(FSL.Quantity) AS Units_Sold,
               SUM(FSL.Quantity * FSL.Price_When_Food_Was_Sold) AS Revenue
        FROM Food_Sale FS
@@ -100,7 +123,7 @@ function registerReportsRoutes(app, { pool }) {
        JOIN Food F ON F.Food_ID = FSL.Food_ID
        WHERE (? IS NULL OR FS.Sale_Date >= ?)
          AND (? IS NULL OR FS.Sale_Date <= ?)
-       GROUP BY F.Food_ID, F.Food_Name, F.Type
+       GROUP BY F.Food_ID, F.Food_Name${hasFoodTypeColumn ? ", F.Type" : ""}
        HAVING SUM(FSL.Quantity) > 0
        ORDER BY Revenue DESC, Units_Sold DESC, F.Food_Name`,
       [cafeStart, cafeStart, cafeEnd, cafeEnd],
@@ -195,11 +218,22 @@ function registerReportsRoutes(app, { pool }) {
       `SELECT * FROM Consolidated_Revenue 
        WHERE (? IS NULL OR Sale_Date >= ?)
          AND (? IS NULL OR Sale_Date <= ?)
-       LIMIT 50`,
+       ORDER BY Sale_Date DESC`,
       [consolidatedStart, consolidatedStart, consolidatedEnd, consolidatedEnd]
     );
 
-    const ticketSalesHtml = ticketSalesRows.map((row) => `
+    const consolidatedPagination = paginateRows(consolidatedRows, consolidatedPage);
+    const ticketSalesPagination = paginateRows(ticketSalesRows, ticketSalesPage);
+    const employeePagination = paginateRows(employeeRows, employeePage);
+    const revenuePagination = paginateRows(exhibitionRevenueRows, revenuePage);
+    const giftPagination = paginateRows(giftSalesRows, giftPage);
+    const cafePagination = paginateRows(cafeSalesRows, cafePage);
+    const membershipPagination = paginateRows(membershipRows, membershipPage);
+    const eventAttendancePagination = paginateRows(eventAttendanceRows, eventAttendancePage);
+    const tourAttendancePagination = paginateRows(tourAttendanceRows, tourAttendancePage);
+    const schedulePagination = paginateRows(scheduleRows, schedulePage);
+
+    const ticketSalesHtml = ticketSalesPagination.items.map((row) => `
       <tr>
         <td>${formatDisplayDate(row.Visit_Date)}</td>
         <td>${escapeHtml(row.Ticket_Type)}</td>
@@ -208,7 +242,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const consolidatedHtml = consolidatedRows.map((row) => `
+    const consolidatedHtml = consolidatedPagination.items.map((row) => `
       <tr>
         <td>${formatDisplayDate(row.Sale_Date)}</td>
         <td>$${Number(row.Ticket_Revenue).toFixed(2)}</td>
@@ -218,7 +252,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const employeeHtml = employeeRows.map((row) => `
+    const employeeHtml = employeePagination.items.map((row) => `
       <tr>
         <td>${escapeHtml(row.Employee_Name)}</td>
         <td>${escapeHtml(row.Employee_Role || "N/A")}</td>
@@ -227,7 +261,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const revenueHtml = exhibitionRevenueRows.map((row) => `
+    const revenueHtml = revenuePagination.items.map((row) => `
       <tr>
         <td>${escapeHtml(row.Exhibition_Name)}</td>
         <td>${row.Tickets_Sold}</td>
@@ -235,7 +269,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const giftSalesHtml = giftSalesRows.map((row) => `
+    const giftSalesHtml = giftPagination.items.map((row) => `
       <tr>
         <td>${escapeHtml(row.Name_of_Item)}</td>
         <td>${row.Units_Sold}</td>
@@ -243,7 +277,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const cafeSalesHtml = cafeSalesRows.map((row) => `
+    const cafeSalesHtml = cafePagination.items.map((row) => `
       <tr>
         <td>${escapeHtml(row.Food_Name)}</td>
         <td>${escapeHtml(row.Type || "N/A")}</td>
@@ -252,7 +286,7 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const membershipHtml = membershipRows.map((row) => {
+    const membershipHtml = membershipPagination.items.map((row) => {
       const isExpired = row.Date_Exited && new Date(row.Date_Exited) < new Date();
       return `
         <tr>
@@ -266,7 +300,7 @@ function registerReportsRoutes(app, { pool }) {
       `;
     }).join("");
 
-    const eventAttendanceHtml = eventAttendanceRows.map((row) => {
+    const eventAttendanceHtml = eventAttendancePagination.items.map((row) => {
       const capacityPct = row.Max_capacity ? ((row.Registered_Count / row.Max_capacity) * 100).toFixed(0) : "0";
       return `
         <tr>
@@ -279,7 +313,7 @@ function registerReportsRoutes(app, { pool }) {
       `;
     }).join("");
 
-    const tourAttendanceHtml = tourAttendanceRows.map((row) => {
+    const tourAttendanceHtml = tourAttendancePagination.items.map((row) => {
       const capacityPct = row.Max_Capacity ? ((row.Registered_Count / row.Max_Capacity) * 100).toFixed(0) : "0";
       return `
         <tr>
@@ -292,7 +326,7 @@ function registerReportsRoutes(app, { pool }) {
       `;
     }).join("");
 
-    const scheduleHtml = scheduleRows.map((row) => `
+    const scheduleHtml = schedulePagination.items.map((row) => `
       <tr>
         <td>${formatDisplayDate(row.Shift_Date)}</td>
         <td>${escapeHtml(row.Employee_Name)}</td>
@@ -314,6 +348,7 @@ function registerReportsRoutes(app, { pool }) {
         <p class="dashboard-note">These report views satisfy the rubric requirement for filtered reports with selectable criteria.</p>
       </section>
       <section class="card narrow">
+        <div id="consolidated-report"></div>
         <h2>Consolidated Financial Summary</h2>
         <p class="dashboard-note">Aggregated daily revenue from all departments (Tickets, Gift Shop, Café).</p>
         <form method="get" action="/reports" class="form-grid">
@@ -337,8 +372,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${consolidatedHtml || '<tr><td colspan="5">No financial data available.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "consolidated_page", consolidatedPagination, "consolidated-report")}
       </section>
       <section class="card narrow">
+        <div id="ticket-sales-report"></div>
         <h2>Ticket Sales by Date Range</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Purchase Start
@@ -360,8 +397,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${ticketSalesHtml || '<tr><td colspan="4">No ticket sales matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "ticket_sales_page", ticketSalesPagination, "ticket-sales-report")}
       </section>
       <section class="card narrow">
+        <div id="employee-report"></div>
         <h2>Employees by Department</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Department Name
@@ -380,8 +419,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${employeeHtml || '<tr><td colspan="4">No employees matched the selected department.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "employee_page", employeePagination, "employee-report")}
       </section>
       <section class="card narrow">
+        <div id="revenue-report"></div>
         <h2>Revenue by Exhibition</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Visit Start
@@ -402,8 +443,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${revenueHtml || '<tr><td colspan="3">No exhibition revenue matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "revenue_page", revenuePagination, "revenue-report")}
       </section>
       <section class="card narrow">
+        <div id="gift-report"></div>
         <h2>Gift Shop Sales Summary</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Sale Start
@@ -425,8 +468,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${giftSalesHtml || '<tr><td colspan="3">No gift shop sales matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "gift_page", giftPagination, "gift-report")}
       </section>
       <section class="card narrow">
+        <div id="cafe-report"></div>
         <h2>Cafe Sales Summary</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Sale Start
@@ -448,8 +493,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${cafeSalesHtml || '<tr><td colspan="3">No cafe sales matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "cafe_page", cafePagination, "cafe-report")}
       </section>
       <section class="card narrow">
+        <div id="membership-report"></div>
         <h2>Membership Status Report</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Joined Start
@@ -474,8 +521,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${membershipHtml || '<tr><td colspan="6">No memberships matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "membership_page", membershipPagination, "membership-report")}
       </section>
       <section class="card narrow">
+        <div id="event-attendance-report"></div>
         <h2>Event Attendance</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Start Date
@@ -498,8 +547,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${eventAttendanceHtml || '<tr><td colspan="5">No events matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "event_attendance_page", eventAttendancePagination, "event-attendance-report")}
       </section>
       <section class="card narrow">
+        <div id="tour-attendance-report"></div>
         <h2>Tour Attendance</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Start Date
@@ -522,8 +573,10 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${tourAttendanceHtml || '<tr><td colspan="5">No tours matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "tour_attendance_page", tourAttendancePagination, "tour-attendance-report")}
       </section>
       <section class="card narrow">
+        <div id="schedule-report"></div>
         <h2>Employee Schedule Report</h2>
         <form method="get" action="/reports" class="form-grid">
           <label>Shift Start
@@ -548,6 +601,7 @@ function registerReportsRoutes(app, { pool }) {
           </thead>
           <tbody>${scheduleHtml || '<tr><td colspan="7">No schedules matched the selected dates.</td></tr>'}</tbody>
         </table>
+        ${renderPager(req, "schedule_page", schedulePagination, "schedule-report")}
       </section>
     `,
     }));

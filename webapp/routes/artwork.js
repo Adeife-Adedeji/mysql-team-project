@@ -1,7 +1,10 @@
 const {
   asyncHandler,
   escapeHtml,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -22,6 +25,7 @@ const ART_TYPES = [
 
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const artworkPage = getPageNumber(req.query.artwork_page);
     const [artists] = await pool.query("SELECT Artist_ID, Artist_Name FROM Artist");
     
     if (artists.length === 0) {
@@ -44,7 +48,8 @@ function registerArtworkRoutes (app, { pool }) {
       JOIN Artist ON Artwork.Artist_ID = Artist.Artist_ID
     `);
 
-    const artworkRows = artworks.map((artwork) => `
+    const artworkPagination = paginateRows(artworks, artworkPage);
+    const artworkRows = artworkPagination.items.map((artwork) => `
       <tr>
         <td>${artwork.Artwork_ID}</td>
         <td>${escapeHtml(artwork.Title)}</td>
@@ -117,6 +122,7 @@ function registerArtworkRoutes (app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="artwork-list"></div>
         <h2>Current Artworks</h2>
         <table>
           <thead>
@@ -134,6 +140,7 @@ function registerArtworkRoutes (app, { pool }) {
             ${artworkRows || '<tr><td colspan="6">No artworks found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "artwork_page", artworkPagination, "artwork-list")}
       </section>
     `,
     }));

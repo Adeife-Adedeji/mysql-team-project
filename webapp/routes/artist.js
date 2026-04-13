@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -13,6 +16,7 @@ const {
 
 function registerArtistRoutes(app, { pool }) {
   app.get("/add-artist", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const artistPage = getPageNumber(req.query.artist_page);
     const [artists] = await pool.query(
       "SELECT Artist_ID, Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death FROM Artist",
     );
@@ -26,7 +30,8 @@ function registerArtistRoutes(app, { pool }) {
       editArtist = rows[0] || null;
     }
 
-    const artistRows = artists.map((artist) => `
+    const artistPagination = paginateRows(artists, artistPage);
+    const artistRows = artistPagination.items.map((artist) => `
       <tr>
         <td>${artist.Artist_ID}</td>
         <td>${escapeHtml(artist.Artist_Name)}</td>
@@ -85,6 +90,7 @@ function registerArtistRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="artist-list"></div>
         <h2>Current Artists</h2>
         <table>
           <thead>
@@ -101,6 +107,7 @@ function registerArtistRoutes(app, { pool }) {
             ${artistRows || '<tr><td colspan="6">No artists found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "artist_page", artistPagination, "artist-list")}
       </section>
     `,
     }));
@@ -171,4 +178,3 @@ function registerArtistRoutes(app, { pool }) {
 }
 
 module.exports = { registerArtistRoutes };
-

@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -13,6 +16,7 @@ const {
 
 function registerScheduleRoutes(app, { pool }) {
   app.get("/add-schedule", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+    const schedulePage = getPageNumber(req.query.schedule_page);
     const [employees] = await pool.query(
       "SELECT Employee_ID, First_Name, Last_Name FROM Employee"
     );
@@ -37,7 +41,8 @@ function registerScheduleRoutes(app, { pool }) {
       editSchedule = rows[0] || null;
     }
 
-    const scheduleRows = schedules.map((s) => `
+    const schedulePagination = paginateRows(schedules, schedulePage);
+    const scheduleRows = schedulePagination.items.map((s) => `
       <tr>
         <td>${s.Schedule_ID}</td>
         <td>${escapeHtml(s.First_Name)} ${escapeHtml(s.Last_Name)}</td>
@@ -104,6 +109,7 @@ function registerScheduleRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="schedule-list"></div>
         <h2>Current Schedule</h2>
         <table>
           <thead>
@@ -122,6 +128,7 @@ function registerScheduleRoutes(app, { pool }) {
             ${scheduleRows || '<tr><td colspan="8">No schedules found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "schedule_page", schedulePagination, "schedule-list")}
       </section>
     `,
     }));

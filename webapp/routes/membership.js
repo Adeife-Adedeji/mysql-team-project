@@ -3,7 +3,10 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getPageNumber,
+  paginateRows,
   renderFlash,
+  renderPager,
   renderPage,
   requireLogin,
   setFlash,
@@ -12,6 +15,7 @@ const {
 
 function registerMembershipRoutes(app, { pool }) {
   app.get("/add-membership", requireLogin, allowRoles(["admissions", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+    const membershipPage = getPageNumber(req.query.membership_page);
     const [members] = await pool.query(
       "SELECT Membership_ID, First_Name, Last_Name, Email, Phone_Number, Date_Joined FROM Membership ORDER BY Membership_ID DESC"
     );
@@ -25,7 +29,8 @@ function registerMembershipRoutes(app, { pool }) {
       editMember = rows[0] || null;
     }
 
-    const memberRows = members.map((member) => `
+    const membershipPagination = paginateRows(members, membershipPage);
+    const memberRows = membershipPagination.items.map((member) => `
       <tr>
         <td>${member.Membership_ID}</td>
         <td>${escapeHtml(member.First_Name)} ${escapeHtml(member.Last_Name)}</td>
@@ -76,6 +81,7 @@ function registerMembershipRoutes(app, { pool }) {
         </form>
       </section>
       <section class="card narrow">
+        <div id="membership-list"></div>
         <h2>Current Members</h2>
         <table>
           <thead>
@@ -92,6 +98,7 @@ function registerMembershipRoutes(app, { pool }) {
             ${memberRows || '<tr><td colspan="6">No members found.</td></tr>'}
           </tbody>
         </table>
+        ${renderPager(req, "membership_page", membershipPagination, "membership-list")}
       </section>
     `,
     }));
