@@ -166,20 +166,29 @@ function registerToursRoutes(app, { pool }) {
       return res.redirect("/tours");
     }
 
-    await pool.query(
-      `INSERT INTO Tour
-         (Tour_Name, Tour_Date, Start_Time, End_Time, Max_Capacity,
-          Guide_ID, Exhibition_ID, Language, Created_At)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
-      [
-        tourName.trim(), tourDate, startTime, endTime, maxCapacity,
-        guideId || null,
-        exhibitionId || null,
-        language || "English"
-      ]
-    );
+    try {
+      await pool.query(
+        `INSERT INTO Tour
+           (Tour_Name, Tour_Date, Start_Time, End_Time, Max_Capacity,
+            Guide_ID, Exhibition_ID, Language, Created_At)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
+        [
+          tourName.trim(), tourDate, startTime, endTime, maxCapacity,
+          guideId || null,
+          exhibitionId || null,
+          language || "English"
+        ]
+      );
+      setFlash(req, "Tour scheduled successfully.");
+    } catch (err) {
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, `Cannot schedule tour: ${err.sqlMessage}`);
+      } else {
+        throw err;
+      }
+    }
 
-    setFlash(req, "Tour scheduled successfully.");
     res.redirect("/tours");
   }));
 

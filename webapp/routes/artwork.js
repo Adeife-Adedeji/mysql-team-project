@@ -1,4 +1,7 @@
 const {
+  ART_STYLES,
+  ART_TYPES,
+  ART_PERIODS,
   asyncHandler,
   escapeHtml,
   getPageNumber,
@@ -11,25 +14,6 @@ const {
   allowRoles,
   logTriggerViolation
 } = require("../helpers");
-
-const ART_STYLES = [
-  "Abstract", "Baroque", "Contemporary", "Cubism", "Expressionism", 
-  "Impressionism", "Mannerism","Modern", "Neoclassicism", "Pop Art", "Post-Impressionism", 
-  "Realism", "Renaissance", "Romanticism", "Surrealism", "Symbolism"
-];
-
-const ART_TYPES = [
-  "Painting", "Sculpture", "Photograph", "Drawing", "Print", 
-  "Installation", "Video Art", "Textile", "Ceramic", "Digital Art"
-];
-
-const ART_PERIODS = [
-  "Early Renaissance (1300-1499)", "High Renaissance (1500-1527)", "Mannerism (1520-1600)",
-  "Baroque (1600-1750)", "Rococo (1700-1775)", "Neoclassicism (1750-1850)", "Romanticism (1800-1850)",
-  "Realism (1840-1880)", "Impressionism (1860-1890)", "Post-Impressionism (1886-1905)", "Modernism (1890-1970)",
-  "Expressionism (1905-1920)", "Cubism (1907-1914)", "Surrealism (1920s-1950s)", "Abstract Expressionism (1940s-1950s)",
-  "Pop Art (1950s-1960s)", "Contemporary (1970-present)"
-];
 
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {

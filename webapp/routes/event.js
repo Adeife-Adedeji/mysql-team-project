@@ -10,7 +10,8 @@ const {
   renderPage,
   requireLogin,
   setFlash,
-  allowRoles
+  allowRoles,
+  logTriggerViolation
 } = require("../helpers");
 
 function registerEventRoutes(app, { pool }) {
@@ -142,22 +143,31 @@ function registerEventRoutes(app, { pool }) {
       return res.redirect("/add-event");
     }
 
-    if (id) {
-      await pool.query(
-        `UPDATE Event
-         SET event_Name = ?, start_Date = ?, end_Date = ?,
-             Max_capacity = ?, member_only = ?, coordinator_ID = ?
-         WHERE event_ID = ?`,
-        [name, startDate, endDate, maxCapacity, memberOnly || 0, coordinatorId || null, id]
-      );
-      setFlash(req, "Event updated successfully.");
-    } else {
-      await pool.query(
-        `INSERT INTO Event (event_Name, start_Date, end_Date, Max_capacity, member_only, coordinator_ID)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [name, startDate, endDate, maxCapacity, memberOnly || 0, coordinatorId || null]
-      );
-      setFlash(req, "Event added successfully.");
+    try {
+      if (id) {
+        await pool.query(
+          `UPDATE Event
+           SET event_Name = ?, start_Date = ?, end_Date = ?,
+               Max_capacity = ?, member_only = ?, coordinator_ID = ?
+           WHERE event_ID = ?`,
+          [name, startDate, endDate, maxCapacity, memberOnly || 0, coordinatorId || null, id]
+        );
+        setFlash(req, "Event updated successfully.");
+      } else {
+        await pool.query(
+          `INSERT INTO Event (event_Name, start_Date, end_Date, Max_capacity, member_only, coordinator_ID)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [name, startDate, endDate, maxCapacity, memberOnly || 0, coordinatorId || null]
+        );
+        setFlash(req, "Event added successfully.");
+      }
+    } catch (err) {
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, `Cannot save event: ${err.sqlMessage}`);
+      } else {
+        throw err;
+      }
     }
 
     res.redirect("/add-event");

@@ -34,6 +34,7 @@ function registerDashboardRoutes(app, { pool }) {
             <div class="button-row dashboard-actions">
               <a class="button" href="/purchase-ticket">Buy Tickets Online</a>
               <a class="button" href="/tour-register">Browse Guided Tours</a>
+              <a class="button" href="/event-register">Browse Events</a>
               <a class="button button-secondary" href="/queries">Explore the Collection</a>
             </div>
           </section>

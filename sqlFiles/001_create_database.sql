@@ -183,7 +183,6 @@ CREATE TABLE IF NOT EXISTS Event (
     updated_at DATE,
     Max_capacity INT NOT NULL,
     CONSTRAINT chk_capacity CHECK (Max_capacity > 0),
-    CHECK (end_Date >= start_Date),
     CONSTRAINT fk_Event_Coordinator FOREIGN KEY (coordinator_ID) REFERENCES Employee (Employee_ID)
 );
 
@@ -215,7 +214,6 @@ CREATE TABLE IF NOT EXISTS Schedule (
     Created_At DATE,
     Updated_By VARCHAR(30),
     Updated_At DATE,
-    CHECK (End_Time > Start_Time),
     CONSTRAINT fk_Schedule_Employee FOREIGN KEY (Employee_ID) REFERENCES Employee (Employee_ID),
     CONSTRAINT fk_Schedule_Exhibition FOREIGN KEY (Exhibition_ID) REFERENCES Exhibition (Exhibition_ID)
 );
@@ -267,7 +265,6 @@ CREATE TABLE IF NOT EXISTS Artwork_Loan (
     Created_At DATE,
     Updated_By VARCHAR(30),
     Updated_At DATE,
-    CHECK (End_Date >= Start_Date),
     CHECK (Insurance_Value IS NULL OR Insurance_Value >= 0),
     CONSTRAINT fk_loan_artwork
         FOREIGN KEY (Artwork_ID) REFERENCES Artwork (Artwork_ID) ON DELETE RESTRICT,
@@ -291,7 +288,6 @@ CREATE TABLE IF NOT EXISTS Tour (
     Created_At DATE,
     Updated_By VARCHAR(30),
     Updated_At DATE,
-    CHECK (End_Time > Start_Time),
     CHECK (Max_Capacity > 0),
     CONSTRAINT fk_tour_guide
         FOREIGN KEY (Guide_ID) REFERENCES Employee (Employee_ID) ON DELETE SET NULL,

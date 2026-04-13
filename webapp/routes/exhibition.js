@@ -114,21 +114,30 @@ function registerExhibitionRoutes(app, { pool }) {
     return res.redirect("/add-exhibition");
   }
 
-    if (id) {
-      await pool.query(
-        `UPDATE Exhibition
-         SET Exhibition_Name = ?, Starting_Date = ?, Ending_Date = ?
-         WHERE Exhibition_ID = ?`,
-        [name, startDate, endDate, id],
-      );
-      setFlash(req, "Exhibition updated successfully.");
-    } else {
-      await pool.query(
-        `INSERT INTO Exhibition (Exhibition_Name, Starting_Date, Ending_Date)
-         VALUES (?, ?, ?)`,
-        [name, startDate, endDate],
-      );
-      setFlash(req, "Exhibition added successfully. Now link artwork to the exhibition.");
+    try {
+      if (id) {
+        await pool.query(
+          `UPDATE Exhibition
+           SET Exhibition_Name = ?, Starting_Date = ?, Ending_Date = ?
+           WHERE Exhibition_ID = ?`,
+          [name, startDate, endDate, id],
+        );
+        setFlash(req, "Exhibition updated successfully.");
+      } else {
+        await pool.query(
+          `INSERT INTO Exhibition (Exhibition_Name, Starting_Date, Ending_Date)
+           VALUES (?, ?, ?)`,
+          [name, startDate, endDate],
+        );
+        setFlash(req, "Exhibition added successfully. Now link artwork to the exhibition.");
+      }
+    } catch (err) {
+      if (err.sqlState === "45000") {
+        await logTriggerViolation(pool, req, err.sqlMessage);
+        setFlash(req, `Cannot save exhibition: ${err.sqlMessage}`);
+      } else {
+        throw err;
+      }
     }
     res.redirect("/add-exhibition");
   }));

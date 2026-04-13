@@ -1,4 +1,7 @@
 const {
+  ART_STYLES,
+  ART_TYPES,
+  ART_PERIODS,
   asyncHandler,
   escapeHtml,
   formatDisplayDate,
@@ -117,14 +120,14 @@ function registerQueriesRoutes(app, { pool }) {
        FROM Artwork AW
        JOIN Artist AR ON AR.Artist_ID = AW.Artist_ID
        WHERE (? IS NULL OR AR.Artist_Name LIKE CONCAT('%', ?, '%'))
-         AND (? IS NULL OR AW.Art_Style LIKE CONCAT('%', ?, '%'))
+         AND (? IS NULL OR AW.Art_Style = ?)
          AND (? IS NULL OR AW.Title LIKE CONCAT('%', ?, '%'))
-         AND (? IS NULL OR AW.Type LIKE CONCAT('%', ?, '%'))
-         AND (? IS NULL OR AW.Time_Period LIKE CONCAT('%', ?, '%'))
+         AND (? IS NULL OR AW.Type = ?)
+         AND (? IS NULL OR AW.Time_Period = ?)
        ORDER BY AR.Artist_Name, AW.Title
        LIMIT 50`,
       [
-        artistSearch, artistSearch, 
+        artistSearch, artistSearch,
         styleSearch, styleSearch,
         titleSearch, titleSearch,
         typeSearch, typeSearch,
@@ -349,13 +352,22 @@ function registerQueriesRoutes(app, { pool }) {
             <input type="text" name="artist" value="${escapeHtml(artistSearch ?? '')}">
           </label>
           <label>Art Style
-            <input type="text" name="style" value="${escapeHtml(styleSearch ?? '')}">
+            <select name="style">
+              <option value="">All Styles</option>
+              ${ART_STYLES.map((s) => `<option value="${escapeHtml(s)}" ${styleSearch === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+            </select>
           </label>
           <label>Type
-            <input type="text" name="type" value="${escapeHtml(typeSearch ?? '')}">
+            <select name="type">
+              <option value="">All Types</option>
+              ${ART_TYPES.map((t) => `<option value="${escapeHtml(t)}" ${typeSearch === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}
+            </select>
           </label>
           <label>Time Period
-            <input type="text" name="period" value="${escapeHtml(periodSearch ?? '')}" placeholder="e.g. 1601-1650">
+            <select name="period">
+              <option value="">All Periods</option>
+              ${ART_PERIODS.map((p) => `<option value="${escapeHtml(p)}" ${periodSearch === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}
+            </select>
           </label>
           <button class="button" type="submit">Search Artwork</button>
         </form>

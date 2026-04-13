@@ -286,19 +286,14 @@ function registerReportsRoutes(app, { pool }) {
       </tr>
     `).join("");
 
-    const membershipHtml = membershipPagination.items.map((row) => {
-      const isExpired = row.Date_Exited && new Date(row.Date_Exited) < new Date();
-      return `
-        <tr>
-          <td>${row.Membership_ID}</td>
-          <td>${escapeHtml(`${row.First_Name} ${row.Last_Name}`)}</td>
-          <td>${escapeHtml(row.Email || "—")}</td>
-          <td>${formatDisplayDate(row.Date_Joined)}</td>
-          <td>${formatDisplayDate(row.Date_Exited)}</td>
-          <td>${isExpired ? "Expired" : "Active"}</td>
-        </tr>
-      `;
-    }).join("");
+    const membershipHtml = membershipPagination.items.map((row) => `
+      <tr>
+        <td>${row.Membership_ID}</td>
+        <td>${escapeHtml(`${row.First_Name} ${row.Last_Name}`)}</td>
+        <td>${escapeHtml(row.Email || "—")}</td>
+        <td>${formatDisplayDate(row.Date_Joined)}</td>
+      </tr>
+    `).join("");
 
     const eventAttendanceHtml = eventAttendancePagination.items.map((row) => {
       const capacityPct = row.Max_capacity ? ((row.Registered_Count / row.Max_capacity) * 100).toFixed(0) : "0";
@@ -529,11 +524,9 @@ function registerReportsRoutes(app, { pool }) {
               <th>Member</th>
               <th>Email</th>
               <th>Joined</th>
-              <th>Exited</th>
-              <th>Status</th>
             </tr>
           </thead>
-          <tbody>${membershipHtml || '<tr><td colspan="6">No memberships matched the selected dates.</td></tr>'}</tbody>
+          <tbody>${membershipHtml || '<tr><td colspan="4">No memberships matched the selected dates.</td></tr>'}</tbody>
         </table>
         ${renderPager(req, "membership_page", membershipPagination, "membership-report")}
       </section>

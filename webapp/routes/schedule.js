@@ -151,14 +151,23 @@ function registerScheduleRoutes(app, { pool }) {
     }
 
     if (id) {
-      await pool.query(
-        `UPDATE Schedule
-         SET Employee_ID = ?, Exhibition_ID = ?, Shift_Date = ?,
-             Start_Time = ?, End_Time = ?, Duty = ?
-         WHERE Schedule_ID = ?`,
-        [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null, id]
-      );
-      setFlash(req, "Schedule updated successfully.");
+      try {
+        await pool.query(
+          `UPDATE Schedule
+           SET Employee_ID = ?, Exhibition_ID = ?, Shift_Date = ?,
+               Start_Time = ?, End_Time = ?, Duty = ?
+           WHERE Schedule_ID = ?`,
+          [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null, id]
+        );
+        setFlash(req, "Schedule updated successfully.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage);
+          setFlash(req, `Cannot update schedule: ${err.sqlMessage}`);
+        } else {
+          throw err;
+        }
+      }
     } else {
       try {
         await pool.query(

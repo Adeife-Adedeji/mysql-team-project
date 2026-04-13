@@ -408,4 +408,94 @@ BEGIN
     END IF;
 END$$
 
+-- Trigger: prevent exhibition end date from being before start date (UPDATE)
+-- The INSERT case is already covered by trigger_check_exhibition_dates above.
+DROP TRIGGER IF EXISTS trigger_check_exhibition_dates_update$$
+CREATE TRIGGER trigger_check_exhibition_dates_update
+BEFORE UPDATE ON Exhibition
+FOR EACH ROW
+BEGIN
+    IF NEW.Ending_Date < NEW.Starting_Date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Exhibition end date cannot be before start date';
+    END IF;
+END$$
+
+-- Trigger: prevent schedule shift end time from being before start time (INSERT)
+-- Replaces the CHECK constraint so violations can be logged by the application.
+DROP TRIGGER IF EXISTS trigger_check_schedule_times$$
+CREATE TRIGGER trigger_check_schedule_times
+BEFORE INSERT ON Schedule
+FOR EACH ROW
+BEGIN
+    IF NEW.End_Time <= NEW.Start_Time THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Shift end time must be after start time';
+    END IF;
+END$$
+
+-- Trigger: prevent schedule shift end time from being before start time (UPDATE)
+DROP TRIGGER IF EXISTS trigger_check_schedule_times_update$$
+CREATE TRIGGER trigger_check_schedule_times_update
+BEFORE UPDATE ON Schedule
+FOR EACH ROW
+BEGIN
+    IF NEW.End_Time <= NEW.Start_Time THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Shift end time must be after start time';
+    END IF;
+END$$
+
+-- Trigger: prevent tour end time from being before start time (INSERT)
+-- Replaces the CHECK constraint so violations can be logged by the application.
+DROP TRIGGER IF EXISTS trigger_check_tour_times$$
+CREATE TRIGGER trigger_check_tour_times
+BEFORE INSERT ON Tour
+FOR EACH ROW
+BEGIN
+    IF NEW.End_Time <= NEW.Start_Time THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Tour end time must be after start time';
+    END IF;
+END$$
+
+-- Trigger: prevent event end date from being before start date (INSERT)
+-- Replaces the CHECK constraint so the violation can be logged by the application.
+DROP TRIGGER IF EXISTS trigger_check_event_dates$$
+CREATE TRIGGER trigger_check_event_dates
+BEFORE INSERT ON Event
+FOR EACH ROW
+BEGIN
+    IF NEW.end_Date < NEW.start_Date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Event end date cannot be before start date';
+    END IF;
+END$$
+
+-- Trigger: prevent event end date from being before start date (UPDATE)
+-- Same rule as the insert trigger but fires when an existing event is edited.
+DROP TRIGGER IF EXISTS trigger_check_event_dates_update$$
+CREATE TRIGGER trigger_check_event_dates_update
+BEFORE UPDATE ON Event
+FOR EACH ROW
+BEGIN
+    IF NEW.end_Date < NEW.start_Date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Event end date cannot be before start date';
+    END IF;
+END$$
+
+-- Trigger: prevent artwork loan end date from being before start date
+-- Replaces the CHECK constraint so the violation can be logged by the application.
+DROP TRIGGER IF EXISTS trigger_check_loan_dates$$
+CREATE TRIGGER trigger_check_loan_dates
+BEFORE INSERT ON Artwork_Loan
+FOR EACH ROW
+BEGIN
+    IF NEW.End_Date < NEW.Start_Date THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Loan end date cannot be before start date';
+    END IF;
+END$$
+
 DELIMITER ;
