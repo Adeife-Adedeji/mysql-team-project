@@ -503,6 +503,11 @@ function registerGiftShopRoutes(app, { pool }) {
         <td>${item.qty}</td>
         <td>$${(item.price * item.qty).toFixed(2)}</td>
         <td>
+        <form method="post" action="/gift-order/update-item" class="inline-form">
+          <input type="hidden" name="item_id" value="${item.id}">
+          <input type="number" name="quantity" value="${item.qty}" min="1" style="width:4rem;">
+          <button class="link-button" type="submit">Edit</button>
+        </form>
           <form method="post" action="/gift-order/remove-item" class="inline-form">
             <input type="hidden" name="item_id" value="${item.id}">
             <button class="link-button danger" type="submit">Remove</button>
@@ -645,7 +650,25 @@ function registerGiftShopRoutes(app, { pool }) {
     req.session.giftCart = (req.session.giftCart || []).filter(i => i.id != req.body.item_id);
     res.redirect("/gift-order");
   }));
+    app.post("/gift-order/update-item", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+      const { item_id, quantity } = req.body;
+      const qty = Number.parseInt(quantity, 10);
 
+      if (!qty || qty < 1) {
+        setFlash(req, "Invalid quantity.");
+        return res.redirect("/gift-order");
+      }
+
+      if (!req.session.giftCart) req.session.giftCart = [];
+
+      const item = req.session.giftCart.find(i => i.id == item_id);
+
+      if (item) {
+        item.qty = qty;
+      }
+
+      res.redirect("/gift-order");
+    }));
   app.post("/gift-order/clear", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     req.session.giftCart = [];
     res.redirect("/gift-order");

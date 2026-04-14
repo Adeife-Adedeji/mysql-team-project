@@ -576,6 +576,11 @@ function registerCafeRoutes(app, { pool }) {
         <td>${item.qty}</td>
         <td>$${(item.price * item.qty).toFixed(2)}</td>
         <td>
+        <form method="post" action="/order/update-item" class="inline-form">
+          <input type="hidden" name="food_id" value="${item.id}">
+          <input type="number" name="quantity" value="${item.qty}" min="1" style="width:4rem;">
+          <button class="link-button" type="submit">Edit</button>
+        </form>
           <form method="post" action="/order/remove-item" class="inline-form">
             <input type="hidden" name="food_id" value="${item.id}">
             <button class="link-button danger" type="submit">Remove</button>
@@ -723,6 +728,25 @@ function registerCafeRoutes(app, { pool }) {
     res.redirect("/order");
   }));
 
+  app.post("/order/update-item", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
+  const { food_id, quantity } = req.body;
+  const qty = Number.parseInt(quantity, 10);
+
+  if (!qty || qty < 1) {
+    setFlash(req, "Invalid quantity.");
+    return res.redirect("/order");
+  }
+
+  if (!req.session.cart) req.session.cart = [];
+
+  const item = req.session.cart.find(i => i.id == food_id);
+
+  if (item) {
+    item.qty = qty;
+  }
+
+  res.redirect("/order");
+}));
   app.post("/order/clear", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     req.session.cart = [];
     res.redirect("/order");
