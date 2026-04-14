@@ -21,7 +21,7 @@ function registerEventRegistrationRoutes(app, { pool }) {
       "SELECT event_ID, event_Name FROM Event ORDER BY start_Date DESC"
     );
     const [members] = await pool.query(
-      "SELECT Membership_ID, First_Name, Last_Name FROM Membership"
+      "SELECT Membership_ID, First_Name, Last_Name FROM Membership WHERE Status = 'Active' ORDER BY Last_Name, First_Name"
     );
     const [tickets] = await pool.query(
       "SELECT Ticket_ID FROM Ticket ORDER BY Ticket_ID DESC"
@@ -203,6 +203,12 @@ function registerEventRegistrationRoutes(app, { pool }) {
       return res.redirect("/dashboard");
     }
 
+    const [[memberInfo]] = await pool.query(
+      "SELECT Status FROM Membership WHERE Membership_ID = ?",
+      [membershipId]
+    );
+    const membershipActive = memberInfo?.Status === "Active";
+
     const [upcomingEvents] = await pool.query(`
       SELECT
         ev.event_ID,
@@ -250,6 +256,8 @@ function registerEventRegistrationRoutes(app, { pool }) {
         actionCell = `<span style="color:seagreen">&#10003; Registered</span>`;
       } else if (isFull) {
         actionCell = `<span style="color:gray">Full</span>`;
+      } else if (!membershipActive) {
+        actionCell = `<span style="color:gray">Membership inactive</span>`;
       } else if (!hasTicket) {
         actionCell = `<a class="button button-secondary" href="/purchase-ticket">Buy Ticket First</a>`;
       } else {
@@ -298,7 +306,8 @@ function registerEventRegistrationRoutes(app, { pool }) {
         <p class="eyebrow">Member Portal</p>
         <h1>Upcoming Events</h1>
         <p class="dashboard-note">Register for upcoming museum events. Spots are limited — register early.</p>
-        ${!hasTicket ? `<p class="flash">You need an admission ticket to register for events. <a href="/purchase-ticket">Buy tickets here</a>.</p>` : ""}
+        ${!membershipActive ? `<p class="flash" style="background:#fee2e2;border-color:#f87171;">Your membership is <strong>${escapeHtml(memberInfo?.Status ?? "inactive")}</strong>. You cannot register for events until your membership is renewed. <a href="/purchase-ticket">Go to membership page</a>.</p>` : ""}
+        ${!membershipActive ? "" : !hasTicket ? `<p class="flash">You need an admission ticket to register for events. <a href="/purchase-ticket">Buy tickets here</a>.</p>` : ""}
         ${renderFlash(req)}
         <table>
           <thead>
@@ -345,6 +354,17 @@ function registerEventRegistrationRoutes(app, { pool }) {
 
     if (!eventId || !membershipId) {
       setFlash(req, "Invalid request.");
+      return res.redirect("/event-register");
+    }
+
+    // Check membership is Active before allowing registration
+    const [[memberStatus]] = await pool.query(
+      "SELECT Status FROM Membership WHERE Membership_ID = ?",
+      [membershipId]
+    );
+    if (!memberStatus || memberStatus.Status !== "Active") {
+      const status = memberStatus?.Status ?? "unknown";
+      setFlash(req, `Your membership is ${status}. Please visit the admissions desk to renew before registering for events.`);
       return res.redirect("/event-register");
     }
 
