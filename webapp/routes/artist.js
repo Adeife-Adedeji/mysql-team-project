@@ -171,6 +171,15 @@ function registerArtistRoutes(app, { pool }) {
       return res.redirect("/add-artist");
     }
 
+    const [[artworkCount]] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM Artwork WHERE Artist_ID = ?",
+      [idToDelete]
+    );
+    if (artworkCount.cnt > 0) {
+      setFlash(req, `Cannot delete artist: they have ${artworkCount.cnt} artwork(s) in the collection. Remove or reassign those artworks first.`);
+      return res.redirect("/add-artist");
+    }
+
     await pool.query("DELETE FROM Artist WHERE Artist_ID = ?", [idToDelete]);
     setFlash(req, "Artist successfully deleted!");
     res.redirect("/add-artist");

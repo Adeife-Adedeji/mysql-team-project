@@ -94,24 +94,52 @@ BEGIN
 END$$
 
 
--- Trigger: block ticket sale if membership is expired
--- Only runs if a Membership_ID was provided (IS NOT NULL).
--- Date_Exited < NEW.Visit_Date means the membership expired before the visit date.
+-- Trigger: auto-set expiry date to 1 year from Date_Joined on INSERT
+-- Staff only fills in Date_Joined — expiry is calculated automatically.
+-- Also forces Status = 'Active' so every new member starts clean.
+DROP TRIGGER IF EXISTS trigger_membership_set_expiry$$
+CREATE TRIGGER trigger_membership_set_expiry
+BEFORE INSERT ON Membership
+FOR EACH ROW
+BEGIN
+    IF NEW.Date_Joined IS NOT NULL THEN
+        SET NEW.Date_Exited = DATE_ADD(NEW.Date_Joined, INTERVAL 1 YEAR);
+    END IF;
+    SET NEW.Status = 'Active';
+END$$
+
+-- Trigger: recalculate expiry if Date_Joined is edited on UPDATE
+-- Only recalculates when Date_Joined itself changed and member is not Cancelled.
+-- This does NOT fire during renewals, which set Date_Exited directly without
+-- changing Date_Joined, so the renewal value is preserved.
+DROP TRIGGER IF EXISTS trigger_membership_update_expiry$$
+CREATE TRIGGER trigger_membership_update_expiry
+BEFORE UPDATE ON Membership
+FOR EACH ROW
+BEGIN
+    IF NEW.Date_Joined != OLD.Date_Joined AND NEW.Status != 'Cancelled' THEN
+        SET NEW.Date_Exited = DATE_ADD(NEW.Date_Joined, INTERVAL 1 YEAR);
+    END IF;
+END$$
+
+-- Trigger: block ticket sale if membership is not active
+-- Status is now the authoritative field. 'Active' = valid, 'Expired'/'Cancelled' = blocked.
+-- The old Date_Exited < Visit_Date check is removed because Date_Exited is now auto-set
+-- by trigger_membership_set_expiry and the daily event manages Status transitions.
 DROP TRIGGER IF EXISTS trigger_check_membership_validity$$
 CREATE TRIGGER trigger_check_membership_validity
 BEFORE INSERT ON Ticket
 FOR EACH ROW
 BEGIN
-    IF NEW.Membership_ID IS NOT NULL AND
-        EXISTS (
+    IF NEW.Membership_ID IS NOT NULL THEN
+        IF EXISTS (
             SELECT 1 FROM Membership
             WHERE Membership_ID = NEW.Membership_ID
-              AND Date_Exited IS NOT NULL
-              AND Date_Exited < NEW.Visit_Date
-        )
-    THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Membership has expired';
+              AND Status != 'Active'
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Membership is expired or cancelled';
+        END IF;
     END IF;
 END$$
 

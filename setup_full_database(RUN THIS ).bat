@@ -113,7 +113,7 @@ if not exist sqlFiles\001_create_database.sql (
     exit /b 1
 )
  
-echo [0/17] Dropping old database for a clean rebuild...
+echo [0/18] Dropping old database for a clean rebuild...
 %MYSQL% -h %MYSQL_HOST% -P %MYSQL_PORT% -u %MYSQL_USER% -p%MYSQL_PASS% %SSL_FLAG% -e "DROP DATABASE IF EXISTS %MYSQL_DB%;"
 if %ERRORLEVEL% NEQ 0 goto error
  
@@ -177,12 +177,16 @@ echo [15/17] insert_sql_files\007_sale_insert.sql
 %MYSQL% -h %MYSQL_HOST% -P %MYSQL_PORT% -u %MYSQL_USER% -p%MYSQL_PASS% %SSL_FLAG% %MYSQL_DB% < insert_sql_files\007_sale_insert.sql
 if %ERRORLEVEL% NEQ 0 goto error
  
-echo [16/17] insert_sql_files\008_registrations_inserts.sql
+echo [16/18] insert_sql_files\008_registrations_inserts.sql
 %MYSQL% -h %MYSQL_HOST% -P %MYSQL_PORT% -u %MYSQL_USER% -p%MYSQL_PASS% %SSL_FLAG% %MYSQL_DB% < insert_sql_files\008_registrations_inserts.sql
 if %ERRORLEVEL% NEQ 0 goto error
- 
-echo [17/17] sqlFiles\004_seed_auth_users.sql (Login Credentials)
+
+echo [17/18] sqlFiles\004_seed_auth_users.sql (Login Credentials)
 %MYSQL% -h %MYSQL_HOST% -P %MYSQL_PORT% -u %MYSQL_USER% -p%MYSQL_PASS% %SSL_FLAG% %MYSQL_DB% < sqlFiles\004_seed_auth_users.sql
+if %ERRORLEVEL% NEQ 0 goto error
+
+echo [18/18] sqlFiles\011_membership_status.sql (Membership backfill + expiry event)
+%MYSQL% -h %MYSQL_HOST% -P %MYSQL_PORT% -u %MYSQL_USER% -p%MYSQL_PASS% %SSL_FLAG% %MYSQL_DB% < sqlFiles\011_membership_status.sql
 if %ERRORLEVEL% NEQ 0 goto error
  
 echo.

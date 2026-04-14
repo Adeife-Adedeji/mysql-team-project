@@ -16,14 +16,16 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     );
     const cart = req.session.ticketCart || [];
     let membershipId = req.session.user.membershipId ?? null;
-    const discount = 0.2; 
+    const discount = 0.2;
+    let membershipInfo = null;
 
     if (membershipId !== null) {
-      const [memberRows] = await pool.query(
-        "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
+      const [[row]] = await pool.query(
+        "SELECT Membership_ID, Status, Date_Joined, Date_Exited FROM Membership WHERE Membership_ID = ?",
         [membershipId],
       );
-      if (memberRows.length === 0) membershipId = null;
+      membershipInfo = row || null;
+      if (!membershipInfo || membershipInfo.Status !== 'Active') membershipId = null;
     }
 
     const [recentTickets] = membershipId
@@ -52,11 +54,54 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       title: "Purchase Tickets",
       user: req.session.user,
       content: `
+      ${(() => {
+        if (!membershipInfo) return '';
+        const status = membershipInfo.Status;
+        const expiryDate = membershipInfo.Date_Exited ? formatDisplayDate(membershipInfo.Date_Exited) : '—';
+        const joinedDate = membershipInfo.Date_Joined ? formatDisplayDate(membershipInfo.Date_Joined) : '—';
+
+        const statusColor = status === 'Active' ? '#dcfce7' : status === 'Expired' ? '#fee2e2' : '#e5e7eb';
+        const statusText = status === 'Active'
+          ? `<span style="color:#166534; font-weight:600;">Active</span>`
+          : status === 'Expired'
+          ? `<span style="color:#991b1b; font-weight:600;">Expired</span>`
+          : `<span style="color:#374151; font-weight:600;">Cancelled</span>`;
+
+        const renewButton = (status === 'Expired' || status === 'Active') ? `
+          <form method="post" action="/member-renew-membership" style="margin-top:0.75rem;">
+            <button class="button" type="submit">
+              ${status === 'Expired' ? 'Renew Membership' : 'Renew Early (extend by 1 year)'}
+            </button>
+          </form>` : '';
+
+        const expiryWarning = status === 'Active' && membershipInfo.Date_Exited ? (() => {
+          const daysLeft = Math.ceil((new Date(membershipInfo.Date_Exited) - new Date()) / (1000 * 60 * 60 * 24));
+          return daysLeft <= 30
+            ? `<p style="color:#92400e; background:#fef3c7; padding:0.5rem 0.75rem; border-radius:6px; margin-top:0.5rem; font-size:0.9em;">
+                Your membership expires in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>. Consider renewing now.
+               </p>`
+            : '';
+        })() : '';
+
+        return `
+        <section class="card narrow" style="background:${statusColor}; border-left: 4px solid ${status === 'Active' ? '#16a34a' : status === 'Expired' ? '#dc2626' : '#9ca3af'};">
+          <p class="eyebrow">Your Membership</p>
+          <h2 style="margin-bottom:0.25rem;">${escapeHtml(req.session.user.name)}</h2>
+          <p style="margin:0.15rem 0;">Status: ${statusText}</p>
+          <p style="margin:0.15rem 0; font-size:0.9em;">Member since: ${joinedDate}</p>
+          <p style="margin:0.15rem 0; font-size:0.9em;">
+            ${status === 'Active' ? 'Valid until' : status === 'Expired' ? 'Expired on' : 'Cancelled on'}:
+            <strong>${expiryDate}</strong>
+          </p>
+          ${expiryWarning}
+          ${renewButton}
+        </section>`;
+      })()}
       <section class="card narrow">
         <p class="eyebrow">Member Portal</p>
         <h1>Purchase Tickets</h1>
         <p class="dashboard-note">Use one form to complete a ticket purchase instead of creating ticket records manually.</p>
-        <p style="color:green; font-weight:bold;">✨ 20% Member Discount will be applied automatically!</p>
+        ${membershipId ? '<p style="color:#166534; font-weight:bold;">20% Member Discount will be applied automatically!</p>' : '<p style="color:#991b1b;">Your membership is not active. Renew above to unlock the 20% member discount.</p>'}
         ${renderFlash(req)}
         <form method="post" action="/purchase-ticket" class="form-grid">
           <label>Visit Date
@@ -142,11 +187,15 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       return res.redirect("/purchase-ticket");
     }
     const [memberRows] = await pool.query(
-      "SELECT Membership_ID FROM Membership WHERE Membership_ID = ?",
+      "SELECT Membership_ID, Status FROM Membership WHERE Membership_ID = ?",
       [membershipId],
     );
     if (memberRows.length === 0) {
-      setFlash(req, "Your membership record could not be found. Please log out and log back in, or contact staff.");
+      setFlash(req, "Your membership record could not be found. Please contact staff.");
+      return res.redirect("/purchase-ticket");
+    }
+    if (memberRows[0].Status !== 'Active') {
+      setFlash(req, `Your membership is ${memberRows[0].Status}. Please visit the admissions desk to renew before purchasing tickets.`);
       return res.redirect("/purchase-ticket");
     }
 
@@ -176,6 +225,43 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       connection.release();
     }
 
+    res.redirect("/purchase-ticket");
+  }));
+
+  // Member self-renewal — only extends their OWN membership (ID comes from session, not body)
+  app.post("/member-renew-membership", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    const membershipId = req.session.user.membershipId;
+
+    if (!membershipId) {
+      setFlash(req, "No membership linked to your account. Please visit the admissions desk.");
+      return res.redirect("/purchase-ticket");
+    }
+
+    const [[member]] = await pool.query(
+      "SELECT Membership_ID, Status FROM Membership WHERE Membership_ID = ?",
+      [membershipId]
+    );
+
+    if (!member) {
+      setFlash(req, "Membership record not found. Please contact staff.");
+      return res.redirect("/purchase-ticket");
+    }
+
+    if (member.Status === "Cancelled") {
+      setFlash(req, "Your membership was cancelled. Please visit the admissions desk to create a new one.");
+      return res.redirect("/purchase-ticket");
+    }
+
+    await pool.query(
+      `UPDATE Membership
+       SET Date_Exited = DATE_ADD(GREATEST(COALESCE(Date_Exited, CURDATE()), CURDATE()), INTERVAL 1 YEAR),
+           Status      = 'Active',
+           Updated_By  = ?
+       WHERE Membership_ID = ?`,
+      [req.session.user.email, membershipId]
+    );
+
+    setFlash(req, "Membership renewed for 1 year. Your member discount is active again!");
     res.redirect("/purchase-ticket");
   }));
 

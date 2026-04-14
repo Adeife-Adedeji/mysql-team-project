@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS Membership (
     Email VARCHAR(50) UNIQUE,
     Date_Joined DATE,
     Date_Exited DATE NULL,
+    Status ENUM('Active', 'Expired', 'Cancelled') NOT NULL DEFAULT 'Active',
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
