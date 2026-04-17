@@ -363,8 +363,6 @@ function registerToursRoutes(app, { pool }) {
         actionCell = `<span style="color:seagreen">&#10003; Registered</span>`;
       } else if (isFull) {
         actionCell = `<span style="color:gray">Full</span>`;
-      } else if (!membershipActive) {
-        actionCell = `<span style="color:gray">Membership inactive</span>`;
       } else {
         actionCell = `
           <form method="post" action="/tour-register">
@@ -413,7 +411,7 @@ function registerToursRoutes(app, { pool }) {
         <p class="eyebrow">Member Portal</p>
         <h1>Guided Tours</h1>
         <p class="dashboard-note">Register for an upcoming guided tour of our exhibitions. Tours are limited in size — register early.</p>
-        ${!membershipActive ? `<p class="flash" style="background:#fee2e2;border-color:#f87171;">Your membership is <strong>${escapeHtml(memberInfo?.Status ?? "inactive")}</strong>. You cannot register for tours until your membership is renewed. <a href="/purchase-ticket">Go to membership page</a>.</p>` : ""}
+
         ${renderFlash(req)}
         <table>
           <thead>
@@ -464,17 +462,6 @@ function registerToursRoutes(app, { pool }) {
 
     if (!tourId || !membershipId) {
       setFlash(req, "Invalid request.");
-      return res.redirect("/tour-register");
-    }
-
-    // Check membership is Active before allowing registration
-    const [[memberStatus]] = await pool.query(
-      "SELECT Status FROM Membership WHERE Membership_ID = ?",
-      [membershipId]
-    );
-    if (!memberStatus || memberStatus.Status !== "Active") {
-      const status = memberStatus?.Status ?? "unknown";
-      setFlash(req, `Your membership is ${status}. Please visit the admissions desk to renew before registering for tours.`);
       return res.redirect("/tour-register");
     }
 

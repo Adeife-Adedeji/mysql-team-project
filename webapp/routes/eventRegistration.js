@@ -256,10 +256,8 @@ function registerEventRegistrationRoutes(app, { pool }) {
         actionCell = `<span style="color:seagreen">&#10003; Registered</span>`;
       } else if (isFull) {
         actionCell = `<span style="color:gray">Full</span>`;
-      } else if (!membershipActive) {
-        actionCell = `<span style="color:gray">Membership inactive</span>`;
-      } else if (!hasTicket) {
-        actionCell = `<a class="button button-secondary" href="/purchase-ticket">Buy Ticket First</a>`;
+      } else if (ev.member_only && !membershipActive) {
+        actionCell = `<span style="color:gray">Active membership required</span>`;
       } else {
         actionCell = `
           <form method="post" action="/event-register">
@@ -306,8 +304,7 @@ function registerEventRegistrationRoutes(app, { pool }) {
         <p class="eyebrow">Member Portal</p>
         <h1>Upcoming Events</h1>
         <p class="dashboard-note">Register for upcoming museum events. Spots are limited — register early.</p>
-        ${!membershipActive ? `<p class="flash" style="background:#fee2e2;border-color:#f87171;">Your membership is <strong>${escapeHtml(memberInfo?.Status ?? "inactive")}</strong>. You cannot register for events until your membership is renewed. <a href="/purchase-ticket">Go to membership page</a>.</p>` : ""}
-        ${!membershipActive ? "" : !hasTicket ? `<p class="flash">You need an admission ticket to register for events. <a href="/purchase-ticket">Buy tickets here</a>.</p>` : ""}
+
         ${renderFlash(req)}
         <table>
           <thead>
@@ -357,33 +354,39 @@ function registerEventRegistrationRoutes(app, { pool }) {
       return res.redirect("/event-register");
     }
 
-    // Check membership is Active before allowing registration
-    const [[memberStatus]] = await pool.query(
-      "SELECT Status FROM Membership WHERE Membership_ID = ?",
-      [membershipId]
+    // Fetch the event to check member_only flag
+    const [[eventInfo]] = await pool.query(
+      "SELECT member_only FROM Event WHERE event_ID = ?",
+      [eventId]
     );
-    if (!memberStatus || memberStatus.Status !== "Active") {
-      const status = memberStatus?.Status ?? "unknown";
-      setFlash(req, `Your membership is ${status}. Please visit the admissions desk to renew before registering for events.`);
+    if (!eventInfo) {
+      setFlash(req, "Event not found.");
       return res.redirect("/event-register");
     }
 
-    // Get the member's most recent ticket
+    // member_only events require an active membership
+    if (eventInfo.member_only) {
+      const [[memberStatus]] = await pool.query(
+        "SELECT Status FROM Membership WHERE Membership_ID = ?",
+        [membershipId]
+      );
+      if (!memberStatus || memberStatus.Status !== "Active") {
+        setFlash(req, "This event is for active members only. Please renew your membership to register.");
+        return res.redirect("/event-register");
+      }
+    }
+
+    // Get the member's most recent ticket if they have one
     const [[latestTicket]] = await pool.query(
       `SELECT Ticket_ID FROM Ticket WHERE Membership_ID = ? ORDER BY Ticket_ID DESC LIMIT 1`,
       [membershipId]
     );
 
-    if (!latestTicket) {
-      setFlash(req, "You need an admission ticket to register for events.");
-      return res.redirect("/event-register");
-    }
-
     try {
       await pool.query(
         `INSERT INTO event_registration (Event_ID, Membership_ID, Ticket_ID, Registration_Date)
          VALUES (?, ?, ?, CURDATE())`,
-        [eventId, membershipId, latestTicket.Ticket_ID]
+        [eventId, membershipId, latestTicket ? latestTicket.Ticket_ID : null]
       );
       setFlash(req, "You are registered for the event!");
     } catch (err) {
