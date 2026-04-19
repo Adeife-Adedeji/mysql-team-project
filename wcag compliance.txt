@@ -1,0 +1,57 @@
+Success Criterion	Accessibility Requirement	Role(s)
+1.1.1	All images and non-text content must have a text alternative.	Developer, Content Editor
+1.2.1	All video-only and audio-only content must have a text transcript, labeled and accessible.	Content Editor
+1.2.2	All videos with sound must have closed captioning.	Content Editor
+1.2.3	Videos must have transcripts or audio descriptions if necessary information isn’t audible.	Content Editor
+1.2.4	Formal live presentations must have closed captions.	Content Editor
+1.2.5	Audio descriptions are required, providing both transcripts and audio descriptions is best.	Content Editor
+1.3.1	Use proper HTML markup to structure content programmatically accessible.	Developer, Content Editor
+1.3.2	Present content in a meaningful sequence for readability.	Developer
+1.3.3	Instructions should not rely on a single sensory ability.	Content Editor
+1.4.1	Do not use color alone to convey information.	Designer, Content Editor
+1.4.2	Provide controls to pause, stop, or mute audio.	Developer
+1.4.3	Ensure color contrast ratios meet minimum requirements.	Designer
+1.4.4	Text must be able to be resized up to 200% without loss of content or functionality.	Designer
+1.4.5	Do not use images of text unless necessary (e.g., logo).	Designer, Content Editor
+2.1.1	All functionality of the website must be accessible by keyboard only, without requiring a mouse.	Developer
+2.1.2	Keyboard-only users must be able to navigate through the website without getting stuck.	Developer
+2.2.1	If there are any time limits on the website, users must have the ability to turn them off, adjust, or extend them.	Developer
+2.2.2	If content blinks, scrolls, or moves, users must have the ability to pause, stop, or hide it.	Designer, Developer, Content Editor
+2.3.1	Web pages do not contain anything that flashes more than three times in any one second period.	Designer, Content Editor
+2.4.1	A “Skip to Content” or similar link allows users to bypass blocks of content that are repeated on multiple pages.	Developer, Designer
+2.4.2	Each page of a website needs to have a unique and descriptive title.	Content Editor
+2.4.3	Users must be able to navigate through the website in a logical order that preserves meaning.	Developer
+2.4.4	The purpose of each link should be clear from its anchor text.	Content Editor
+2.4.5	There must be multiple ways to find different pages and content on a website.	Designer
+2.4.6	Headings and labels must be clear and descriptive.	Content Editor
+2.4.7	Any user interface control that receives focus from a keyboard user should have a visible focus indicator.	Designer
+3.1.1	Set the language of your website programmatically to aid user agents and assistive technologies.	Developer
+3.1.2	Indicate any language changes within the content or for the entire page.	Content Editor
+3.2.1	No context changes should occur merely because an item receives focus.	Developer, Designer
+3.2.2	User interface changes should not automatically occur due to user input without a warning.	Developer
+3.2.3	Keep navigation links and layout consistent throughout all pages of the website.	Designer
+3.2.4	Components that have the same function within a website are consistently identified.	Developer, Designer
+3.3.1	Make any form errors easy to identify, understand, and correct.	Developer, Designer
+3.3.2	Provide clear visual and programmatic labels or instructions for user input fields.	Developer
+3.3.3	If an input error is automatically detected, then suggestions for correcting the error should be provided.	Developer
+3.3.4	For pages that create legal commitments or financial transactions, ensure that submissions are reversible, errors can be corrected, and confirmation is available before submission.	Developer
+4.1.1	Ensure HTML code is clean and free of errors. All HTML elements must be properly nested and closed.	Developer
+4.1.2	For all user interface components, ensure the name, role, state, and value can be programmatically determined.	Developer
+1.3.4	Your website does not lock on portrait or landscape mode, unless necessary.	Developer
+1.3.5	The purpose of an input element can be determined so browsers and assistive technology can help guide and facilitate inputting information (e.g., provide autocomplete option).	Developer
+1.4.10	Ensure someone can zoom in on your website without requiring scrolling or causing poor experience.	Designer
+1.4.11	All meaningful non-text content (e.g., buttons, form fields, icons) on your website should have a minimum 3:1 color contrast ratio to ensure they stand out.	Designer
+1.4.12	Make sure your text spacing can be adjusted without causing a poor experience.	Designer
+1.4.13	Make it so any additional content (e.g., pop-ups, submenus) can be dismissed or remain visible if the user desires.	Designer, Developer
+2.1.4	If you have a keyboard shortcut, make sure a user can either 1) turn it off, 2) there’s a way to add another key in the shortcut, and/or 3) have the shortcut only active while focusing on a specific component.	Developer
+2.5.1	Provide simple alternatives (e.g., single tap vs. swipe) to potentially complex finger motions on touch screens.	Developer
+2.5.2	Provide a way to cancel the trigger action when you activate a function using a mouse or press/touch with your finger.	Developer
+2.5.3	Make sure any programmatic labels you make are aligned with the corresponding visual text.	Developer
+2.5.4	For any functions that are activated by motion, provide a simpler, alternative means of action. Also, give users the option to turn off motion activation.	Developer
+4.1.3	When a status message appears, it should be coded with role or properties so that people using assistive technologies (e.g., screen readers) are alerted without losing focus.
+2.4.11	When an element receives focus, ensure it is not completely hidden or blocked by other content, such as sticky headers or footers.	Developer, Designer
+2.5.7	For functions requiring a dragging movement, provide an alternative using a single point (click or touch) to accomplish the task.	Developer
+2.5.8	Ensure the target size for interactive elements is at least 24 by 24 CSS pixels, with specified exceptions.	Designer
+3.2.6	Help options such as support links, contact information, or chatbots should remain consistent and predictable on multiple pages.	Content Editor, Designer
+3.3.7	Auto-populate or make selectable previously entered information within the same session unless re-entry is essential.	Developer
+3.3.8	Ensure users can authenticate without solely relying on memory or cognitive tests, offering alternative methods or assistance.	Developer

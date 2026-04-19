@@ -117,7 +117,7 @@ function registerEmployeeRoutes(app, { pool }) {
               `).join("")}
             </select>
           </label>
-          <button class="button" type="submit">${editEmployee ? "Update Employee" : "Add Employee"}</button>
+          <button class="button" type="submit">${editEmployee ? "Save Employee" : "Create Employee"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -196,7 +196,7 @@ function registerEmployeeRoutes(app, { pool }) {
          WHERE Employee_ID = ?`,
         [...params, id]
       );
-      setFlash(req, "Employee updated successfully.");
+      setFlash(req, "Employee record updated.");
     } else {
       await pool.query(
         `INSERT INTO Employee
@@ -205,7 +205,7 @@ function registerEmployeeRoutes(app, { pool }) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params
       );
-      setFlash(req, "Employee added successfully.");
+      setFlash(req, "Employee record created.");
     }
 
     res.redirect("/add-employee");
@@ -215,7 +215,7 @@ function registerEmployeeRoutes(app, { pool }) {
     const idToDelete = req.body.employee_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No employee ID provided.");
+      setFlash(req, "Select an employee record before deleting.");
       return res.redirect("/add-employee");
     }
 
@@ -226,7 +226,7 @@ function registerEmployeeRoutes(app, { pool }) {
     await pool.query("DELETE FROM Food_Sale WHERE Employee_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Employee WHERE Employee_ID = ?", [idToDelete]);
 
-    setFlash(req, "Employee deleted successfully.");
+    setFlash(req, "Employee record deleted.");
     res.redirect("/add-employee");
   }));
 }

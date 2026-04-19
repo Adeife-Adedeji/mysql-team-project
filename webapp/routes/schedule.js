@@ -105,7 +105,7 @@ function registerScheduleRoutes(app, { pool }) {
           <label>Duty
             <input type="text" name="duty" value="${editSchedule ? escapeHtml(editSchedule.Duty || "") : ""}">
           </label>
-          <button class="button" type="submit">${editSchedule ? "Update Schedule" : "Add Schedule"}</button>
+          <button class="button" type="submit">${editSchedule ? "Save Schedule" : "Create Schedule"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -159,7 +159,7 @@ function registerScheduleRoutes(app, { pool }) {
            WHERE Schedule_ID = ?`,
           [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null, id]
         );
-        setFlash(req, "Schedule updated successfully.");
+        setFlash(req, "Schedule record updated.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -175,7 +175,7 @@ function registerScheduleRoutes(app, { pool }) {
            VALUES (?, ?, ?, ?, ?, ?)`,
           [employeeId, exhibitionId, shiftDate, startTime, endTime, duty || null]
         );
-        setFlash(req, "Schedule added successfully.");
+        setFlash(req, "Schedule record created.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -193,12 +193,12 @@ function registerScheduleRoutes(app, { pool }) {
     const idToDelete = req.body.schedule_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No schedule ID provided.");
+      setFlash(req, "Select a schedule record before deleting.");
       return res.redirect("/add-schedule");
     }
 
     await pool.query("DELETE FROM Schedule WHERE Schedule_ID = ?", [idToDelete]);
-    setFlash(req, "Schedule entry deleted.");
+    setFlash(req, "Schedule record deleted.");
     res.redirect("/add-schedule");
   }));
 }

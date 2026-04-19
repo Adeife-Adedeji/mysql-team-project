@@ -1,0 +1,51 @@
+Feedback — Team Task List 
+
+ 
+
+1. CHECK / FIX DELETE BUTTON THROUGHOUT THE WEB APP 
+
+2. Separate Edit and Delete into their own columns in every table — not the same column 
+
+3. All buttons (Edit, Delete, Submit, etc.) must look like real styled buttons — not plain text links   
+
+4. Add images to the app — homepage, dashboard, key pages. It needs to look like a museum 
+
+5. Make each role portal look visually different — member, employee, supervisor all look the same. No distinction between roles at all 
+
+6. Make it obvious which department an employee is in — logging in as cafe employee should feel like a cafe page, gift shop should feel like a gift shop page   
+
+7. Admins and supervisors should have a clearly different look and feel from regular members   
+
+8. Prevent negative stock numbers in Gift Shop inventory 
+
+9. Fix: changing membership expiry date to a past date should make it inactive 
+
+10. Fix: expired members should not be able to register for member-only events 
+
+11. Block cancelled/ expried  members from even opening the dashboard page( if expired then ask them if whey want renew, if canceled ask them to contact an employee) 
+
+12. Add more filters to reports — not just date. Add by department, employee, exhibition, ticket type etc. 
+
+13. Add totals and summaries to reports — total revenue, tickets sold, headcount etc. 
+
+14. Move all constraints into their own SQL file (e.g. 006_constraints.sql) 
+
+15. Remove the text that says "Queries for Members" from the queries page 
+
+16. Make notifications visible and in-your-face for managers — red, bold, popup style (not just a small flash message)   
+
+17. Add a sidebar or side panel so users can navigate and know where they are 
+
+18. Separate login pages for staff vs members — "Staff? Log in here" and "Member? Log in here" 
+
+19. Add at least one new report type — e.g. Gift Shop Revenue by Item, Membership Activity 
+
+20. Review all existing triggers and make sure they cover real business rules 
+
+21. Make reports printable or styled to look like an actual report 
+
+22. Add progress bar to event sign up and turn each event into a card with a button 
+
+23. Add multiple types of membership cards (instead of choosing from dropdown) and then going to checkout 
+
+24. Ensure business rules are properly implemented and clear 

@@ -9,16 +9,32 @@ const {
   renderPager,
   renderPage,
   requireLogin,
+  sanitizeImageUrl,
   setFlash,
   allowRoles,
   logTriggerViolation
 } = require("../helpers");
 
+async function hasColumn(pool, tableName, columnName) {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  return rows.length > 0;
+}
+
 function registerArtistRoutes(app, { pool }) {
   app.get("/add-artist", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
     const artistPage = getPageNumber(req.query.artist_page);
+    const hasImageUrlColumn = await hasColumn(pool, "Artist", "Image_URL");
     const [artists] = await pool.query(
-      "SELECT Artist_ID, Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death FROM Artist",
+      `SELECT Artist_ID, Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death, ${hasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Artist`,
     );
 
     let editArtist = null; 
@@ -38,12 +54,13 @@ function registerArtistRoutes(app, { pool }) {
         <td>${escapeHtml(artist.Birth_Place || "Unknown")}</td>
         <td>${formatDisplayDate(artist.Date_of_Birth)}</td>
         <td>${artist.Date_of_Death ? formatDisplayDate(artist.Date_of_Death) : "<em>Still Alive</em>"}</td>
+        <td>${artist.Image_URL ? `<img src="${escapeHtml(artist.Image_URL)}" alt="${escapeHtml(artist.Artist_Name)} preview" class="table-thumb">` : "—"}</td>
         <td class="actions">
           <form method="get" action="/add-artist" class="inline-form">
             <input type="hidden" name="edit_id" value="${artist.Artist_ID}">
             <button class="link-button" type="submit">Edit</button>
           </form>
-          <form method="post" action="/delete-artist" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this artist?');">
+          <form method="post" action="/delete-artist" class="inline-form" onsubmit="return confirm('Delete this artist record?');">
             <input type="hidden" name="artist_id" value="${artist.Artist_ID}">
             <button class="link-button danger" type="submit">Delete</button>
           </form>
@@ -56,7 +73,7 @@ function registerArtistRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editArtist ? "Edit Artist" : "Add New Artist"}</h1>
+        <h1>${editArtist ? "Edit Artist" : "Create Artist Record"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-artist" class="form-grid">
           ${editArtist ? `<input type="hidden" name="artist_id" value="${editArtist.Artist_ID}">` : ""}
@@ -69,6 +86,10 @@ function registerArtistRoutes(app, { pool }) {
             <input type="text" name="birthplace" value="${editArtist ? escapeHtml(editArtist.Birth_Place) : ""}">
           </label>
           <label>
+            Image
+            <input type="text" name="image_url" value="${editArtist ? escapeHtml(editArtist.Image_URL || "") : ""}" placeholder="jacopo-da-empoli.jpg, /images/jacopo-da-empoli.jpg, or https://...">
+          </label>
+          <label>
             Date of Birth
             <input type="date" name="dob" value="${editArtist ? formatDateInput(editArtist.Date_of_Birth) : ""}">
           </label>
@@ -77,7 +98,7 @@ function registerArtistRoutes(app, { pool }) {
               <input type="checkbox" name="still_alive" id="stillAliveCheckbox" value="1"
                 ${editArtist ? (editArtist.Date_of_Death ? "" : "checked") : "checked"}
                 onchange="document.getElementById('dodWrapper').style.display = this.checked ? 'none' : 'flex'">
-              Artist is Still Alive
+              Artist is living
             </label>
             <div id="dodWrapper" style="display:${editArtist && editArtist.Date_of_Death ? 'flex' : 'none'}; flex-direction: column; gap: 4px;">
               <label>
@@ -86,7 +107,7 @@ function registerArtistRoutes(app, { pool }) {
               </label>
             </div>
           </div>
-          <button class="button" type="submit">${editArtist ? "Update Artist" : "Add Artist"}</button>
+          <button class="button" type="submit">${editArtist ? "Save Artist" : "Create Artist"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -100,11 +121,12 @@ function registerArtistRoutes(app, { pool }) {
               <th>Birth Place</th>
               <th>Date of Birth</th>
               <th>Date of Death</th>
+              <th>Image</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${artistRows || '<tr><td colspan="6">No artists found.</td></tr>'}
+            ${artistRows || '<tr><td colspan="7">No artists found.</td></tr>'}
           </tbody>
         </table>
         ${renderPager(req, "artist_page", artistPagination, "artist-list")}
@@ -119,6 +141,8 @@ function registerArtistRoutes(app, { pool }) {
     const dob = req.body.dob || null;
     const dod = req.body.still_alive === '1' ? null : (req.body.dod || null);
     const birthplace = req.body.birthplace?.trim() || null;
+    const imageUrl = sanitizeImageUrl(req.body.image_url) || null;
+    const hasImageUrlColumn = await hasColumn(pool, "Artist", "Image_URL");
 
     if (!name) {
       setFlash(req, "Artist name is required.");
@@ -127,13 +151,22 @@ function registerArtistRoutes(app, { pool }) {
 
     if (id) {
       try {
-        await pool.query(
-          `UPDATE Artist
-           SET Artist_Name = ?, Birth_Place = ?, Date_of_Birth = ?, Date_of_Death = ?
-           WHERE Artist_ID = ?`,
-          [name, birthplace, dob, dod, id],
-        );
-        setFlash(req, "Artist updated successfully.");
+        if (hasImageUrlColumn) {
+          await pool.query(
+            `UPDATE Artist
+             SET Artist_Name = ?, Birth_Place = ?, Date_of_Birth = ?, Date_of_Death = ?, Image_URL = ?
+             WHERE Artist_ID = ?`,
+            [name, birthplace, dob, dod, imageUrl, id],
+          );
+        } else {
+          await pool.query(
+            `UPDATE Artist
+             SET Artist_Name = ?, Birth_Place = ?, Date_of_Birth = ?, Date_of_Death = ?
+             WHERE Artist_ID = ?`,
+            [name, birthplace, dob, dod, id],
+          );
+        }
+        setFlash(req, "Artist record updated.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -144,12 +177,20 @@ function registerArtistRoutes(app, { pool }) {
       }
     } else {
       try {
-        await pool.query(
-          `INSERT INTO Artist (Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death)
-           VALUES (?, ?, ?, ?)`,
-          [name, birthplace, dob, dod],
-        );
-        setFlash(req, "Artist added successfully.");
+        if (hasImageUrlColumn) {
+          await pool.query(
+            `INSERT INTO Artist (Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death, Image_URL)
+             VALUES (?, ?, ?, ?, ?)`,
+            [name, birthplace, dob, dod, imageUrl],
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO Artist (Artist_Name, Birth_Place, Date_of_Birth, Date_of_Death)
+             VALUES (?, ?, ?, ?)`,
+            [name, birthplace, dob, dod],
+          );
+        }
+        setFlash(req, "Artist record created.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -167,7 +208,7 @@ function registerArtistRoutes(app, { pool }) {
     const idToDelete = req.body.artist_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No artist ID provided.");
+      setFlash(req, "Select an artist record before deleting.");
       return res.redirect("/add-artist");
     }
 
@@ -176,12 +217,12 @@ function registerArtistRoutes(app, { pool }) {
       [idToDelete]
     );
     if (artworkCount.cnt > 0) {
-      setFlash(req, `Cannot delete artist: they have ${artworkCount.cnt} artwork(s) in the collection. Remove or reassign those artworks first.`);
+      setFlash(req, `This artist is linked to ${artworkCount.cnt} artwork record(s). Remove or reassign those artworks before deleting the artist.`);
       return res.redirect("/add-artist");
     }
 
     await pool.query("DELETE FROM Artist WHERE Artist_ID = ?", [idToDelete]);
-    setFlash(req, "Artist successfully deleted!");
+    setFlash(req, "Artist record deleted.");
     res.redirect("/add-artist");
   }));
 }

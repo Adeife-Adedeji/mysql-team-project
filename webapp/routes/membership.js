@@ -67,7 +67,7 @@ function registerMembershipRoutes(app, { pool }) {
           <form method="post" action="/restore-membership" class="inline-form"
                 onsubmit="return confirm('Restore this membership? They will get a new 1-year period starting today.');">
             <input type="hidden" name="membership_id" value="${m.Membership_ID}">
-            <button class="link-button" type="submit" style="color:#166534;">Restore</button>
+            <button class="link-button success" type="submit">Restore</button>
           </form>`);
       }
 
@@ -111,9 +111,7 @@ function registerMembershipRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Admissions Desk</p>
         <h1>${editMember ? "Edit Membership" : "Visitor Memberships"}</h1>
-        <p>Memberships last <strong>1 year</strong> from the date joined and are automatically expired. Use <em>Renew</em> to extend an existing membership by another year.</p>
         ${renderFlash(req)}
         <form method="post" action="/add-membership" class="form-grid">
           ${editMember ? `<input type="hidden" name="membership_id" value="${editMember.Membership_ID}">` : ""}

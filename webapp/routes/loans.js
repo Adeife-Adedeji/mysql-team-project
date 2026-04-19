@@ -3,6 +3,7 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getArtworkAsset,
   renderFlash,
   renderPage,
   requireLogin,
@@ -59,9 +60,7 @@ function registerLoansRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Loans Management</p>
         <h1>${editInstitution ? "Edit Institution" : "Manage Institutions"}</h1>
-        <p class="dashboard-note">Institutions are external museums and galleries that the museum lends artwork to or borrows from.</p>
         ${renderFlash(req)}
         <form method="post" action="/institutions" class="form-grid">
           ${editInstitution ? `<input type="hidden" name="institution_id" value="${editInstitution.Institution_ID}">` : ""}
@@ -173,7 +172,7 @@ function registerLoansRoutes(app, { pool }) {
     } catch (err) {
       // MySQL error 1451 = FK constraint violation (has existing loans)
       if (err.code === "ER_ROW_IS_REFERENCED_2") {
-        setFlash(req, "Cannot delete: this institution has loan records on file.");
+        setFlash(req, "This institution is linked to loan records and cannot be deleted.");
       } else {
         throw err;
       }
@@ -188,7 +187,7 @@ function registerLoansRoutes(app, { pool }) {
     const filterStatus = req.query.status || "Active";
 
     const [artworks] = await pool.query(`
-      SELECT AW.Artwork_ID, AW.Title, AR.Artist_Name
+      SELECT AW.Artwork_ID, AW.Title, AW.Type, AW.Image_URL, AR.Artist_Name
       FROM Artwork AW
       JOIN Artist AR ON AW.Artist_ID = AR.Artist_ID
       ORDER BY AW.Title
@@ -211,6 +210,8 @@ function registerLoansRoutes(app, { pool }) {
         AL.Loan_ID, AL.Loan_Type, AL.Start_Date, AL.End_Date,
         AL.Insurance_Value, AL.Status, AL.Notes,
         AW.Title AS Artwork_Title,
+        AW.Type AS Artwork_Type,
+        AW.Image_URL AS Artwork_Image_URL,
         AR.Artist_Name,
         I.Institution_Name,
         CONCAT(E.First_Name, ' ', E.Last_Name) AS Approved_By_Name
@@ -225,16 +226,19 @@ function registerLoansRoutes(app, { pool }) {
 
     const loanRows = loans.map((loan) => {
       const isActive = loan.Status === "Active";
+      const asset = getArtworkAsset(loan.Artwork_Title, loan.Artwork_Type, loan.Artwork_Image_URL);
+      const statusTone = loan.Status === "Active" ? "success" : loan.Status === "Returned" ? "neutral" : "danger";
       return `
         <tr>
           <td>${loan.Loan_ID}</td>
-          <td>${escapeHtml(loan.Artwork_Title)}<br><small>${escapeHtml(loan.Artist_Name)}</small></td>
+          <td><img src="${escapeHtml(asset.imagePath)}" alt="${escapeHtml(asset.alt)}" class="table-thumb"></td>
+          <td><strong>${escapeHtml(loan.Artwork_Title)}</strong><span class="table-subtext">${escapeHtml(loan.Artist_Name)}</span></td>
           <td>${escapeHtml(loan.Institution_Name)}</td>
           <td>${escapeHtml(loan.Loan_Type)}</td>
           <td>${formatDisplayDate(loan.Start_Date)}</td>
           <td>${formatDisplayDate(loan.End_Date)}</td>
           <td>${loan.Insurance_Value != null ? "$" + Number(loan.Insurance_Value).toLocaleString() : "—"}</td>
-          <td>${escapeHtml(loan.Status)}</td>
+          <td><span class="status-badge status-badge--${statusTone}">${escapeHtml(loan.Status)}</span></td>
           <td class="actions">
             ${isActive ? `
               <form method="post" action="/artwork-loans/return" class="inline-form"
@@ -258,7 +262,6 @@ function registerLoansRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Loans Management</p>
         <h1>Record Artwork Loan</h1>
         <p class="dashboard-note">
           <strong>Outgoing</strong> = we lend our artwork to another institution.<br>
@@ -328,6 +331,7 @@ function registerLoansRoutes(app, { pool }) {
           <thead>
             <tr>
               <th>#</th>
+              <th>Image</th>
               <th>Artwork</th>
               <th>Institution</th>
               <th>Type</th>
@@ -339,7 +343,7 @@ function registerLoansRoutes(app, { pool }) {
             </tr>
           </thead>
           <tbody>
-            ${loanRows || `<tr><td colspan="9">No ${filterStatus === "All" ? "" : "active "}loans found.</td></tr>`}
+            ${loanRows || `<tr><td colspan="10">No ${filterStatus === "All" ? "" : "active "}loans found.</td></tr>`}
           </tbody>
         </table>
       </section>
@@ -379,7 +383,7 @@ function registerLoansRoutes(app, { pool }) {
           notes?.trim() || null
         ]
       );
-      setFlash(req, "Loan recorded successfully.");
+      setFlash(req, "Loan record created.");
     } catch (err) {
       // Catch the trigger signal from trigger_check_artwork_on_loan
       if (err.sqlState === "45000") {

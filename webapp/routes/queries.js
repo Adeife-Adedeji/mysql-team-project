@@ -21,7 +21,7 @@ function renderArtworkResults(artworkResults) {
   return `
     <div class="collection-grid">
       ${artworkResults.map((artwork) => {
-        const asset = getArtworkAsset(artwork.Title, artwork.Type);
+        const asset = getArtworkAsset(artwork.Title, artwork.Type, artwork.Image_URL);
         return `
           <article class="collection-card">
             <div class="collection-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
@@ -52,8 +52,8 @@ function renderProductCards(items, type) {
         const name = item.Name_of_Item || item.Food_Name;
         const category = item.Category || item.Type;
         const asset = type === "giftshop"
-          ? getGiftShopAsset(name, category)
-          : getCafeAsset(name, category);
+          ? getGiftShopAsset(name, category, item.Image_URL)
+          : getCafeAsset(name, category, item.Image_URL);
         const price = item.Price_of_Item ?? item.Food_Price;
         const stock = item.Stock_Quantity ?? "N/A";
         return `
@@ -87,9 +87,27 @@ function registerQueriesRoutes(app, { pool }) {
     const [allExhibitions] = await pool.query("SELECT Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name");
     const [allInstitutions] = await pool.query("SELECT Institution_Name FROM institution ORDER BY Institution_Name");
     const conditionStatuses = ["Excellent", "Good", "Fair", "Poor", "Critical", "No Recent Report"];
+    const [artworkImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Artwork'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasArtworkImageColumn = artworkImageColumns.length > 0;
+    const [exhibitionImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Exhibition'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasExhibitionImageColumn = exhibitionImageColumns.length > 0;
 
     const [artworkStatusResults] = await pool.query(
-      `SELECT AW.Title, AW.Type,
+      `SELECT AW.Title, AW.Type, ${hasArtworkImageColumn ? "AW.Image_URL" : "NULL"} AS Image_URL,
               CASE 
                 WHEN AL_Info.Loan_ID IS NOT NULL THEN CONCAT('On Loan to: ', AL_Info.Institution_Name)
                 WHEN EX.Exhibition_ID IS NOT NULL THEN CONCAT('In Exhibition: ', EX.Exhibition_Name)
@@ -170,9 +188,18 @@ function registerQueriesRoutes(app, { pool }) {
        LIMIT 1`
     );
     const hasGiftStockColumn = giftStockColumns.length > 0;
+    const [giftImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Gift_Shop_Item'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasGiftImageColumn = giftImageColumns.length > 0;
 
     const [artworkResults] = await pool.query(
-      `SELECT AW.Title, AW.Type, AW.Art_Style, AW.Time_Period, AR.Artist_Name
+      `SELECT AW.Title, AW.Type, AW.Art_Style, AW.Time_Period, ${hasArtworkImageColumn ? "AW.Image_URL" : "NULL"} AS Image_URL, AR.Artist_Name
        FROM Artwork AW
        JOIN Artist AR ON AR.Artist_ID = AW.Artist_ID
        WHERE (? IS NULL OR AR.Artist_Name LIKE CONCAT('%', ?, '%'))
@@ -192,7 +219,7 @@ function registerQueriesRoutes(app, { pool }) {
     );
 
     const [exhibitionResults] = await pool.query(
-      `SELECT Exhibition_Name, Starting_Date, Ending_Date
+      `SELECT Exhibition_Name, Starting_Date, Ending_Date, ${hasExhibitionImageColumn ? "Image_URL" : "NULL"} AS Image_URL
        FROM Exhibition
        WHERE (? IS NULL OR Ending_Date >= ?)
          AND (? IS NULL OR Starting_Date <= ?)
@@ -202,7 +229,7 @@ function registerQueriesRoutes(app, { pool }) {
     );
 
     const [inventoryResults] = await pool.query(
-      `SELECT Name_of_Item, Category, Price_of_Item, ${hasGiftStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
+      `SELECT Name_of_Item, Category, Price_of_Item, ${hasGiftStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity, ${hasGiftImageColumn ? "Image_URL" : "NULL"} AS Image_URL
        FROM Gift_Shop_Item
        WHERE (? IS NULL OR Category = ?)
          AND (? IS NULL OR Price_of_Item <= ?)
@@ -232,6 +259,15 @@ function registerQueriesRoutes(app, { pool }) {
        LIMIT 1`
     );
     const hasFoodStockColumn = foodStockColumns.length > 0;
+    const [foodImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Food'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasFoodImageColumn = foodImageColumns.length > 0;
     const cafeFilterSql = hasFoodTypeColumn
       ? "(? IS NULL OR Type LIKE CONCAT('%', ?, '%'))"
       : "(? IS NULL)";
@@ -242,22 +278,24 @@ function registerQueriesRoutes(app, { pool }) {
       `SELECT Food_Name,
               ${hasFoodTypeColumn ? "Type" : "NULL"} AS Type,
               Food_Price,
-              ${hasFoodStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
+              ${hasFoodStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity,
+              ${hasFoodImageColumn ? "Image_URL" : "NULL"} AS Image_URL
        FROM Food
        WHERE ${cafeFilterSql}
        ORDER BY ${hasFoodTypeColumn ? "Type," : ""} Food_Name
        LIMIT 50`,
       cafeFilterParams,
     );
+    const canViewStaffing = isSuper || isEmp;
 
     const artworkStatusRows = artworkStatusResults.map((row) => {
-      const asset = getArtworkAsset(row.Title, row.Type);
+      const asset = getArtworkAsset(row.Title, row.Type, row.Image_URL);
       return `
         <tr>
-          <td><img src="${asset.imagePath}" alt="${asset.alt}" style="width:4rem;height:4rem;object-fit:cover;"></td>
+          <td><img src="${asset.imagePath}" alt="${asset.alt}" class="table-thumb"></td>
           <td>${escapeHtml(row.Title)}</td>
           <td>${escapeHtml(row.Current_Location)}</td>
-          ${isSuper || isEmp ? `<td>${escapeHtml(row.Last_Condition)}</td>` : ""}
+          ${isSuper || isEmp ? `<td><span class="condition-badge condition-badge--${escapeHtml(String(row.Last_Condition || "pending").toLowerCase().replace(/\s+/g, "-"))}">${escapeHtml(row.Last_Condition)}</span></td>` : ""}
         </tr>
       `;
     }).join("");
@@ -273,10 +311,10 @@ function registerQueriesRoutes(app, { pool }) {
     `).join("");
 
     const exhibitionRows = exhibitionResults.map((exhibition) => {
-      const asset = getExhibitionAsset(exhibition.Exhibition_Name);
+      const asset = getExhibitionAsset(exhibition.Exhibition_Name, exhibition.Image_URL);
       return `
         <tr>
-          <td><img src="${asset.imagePath}" alt="${asset.alt}" style="width:4rem;height:4rem;object-fit:cover;"></td>
+          <td><img src="${asset.imagePath}" alt="${asset.alt}" class="table-thumb"></td>
           <td>${escapeHtml(exhibition.Exhibition_Name)}</td>
           <td>${formatDisplayDate(exhibition.Starting_Date)}</td>
           <td>${formatDisplayDate(exhibition.Ending_Date)}</td>
@@ -290,21 +328,21 @@ function registerQueriesRoutes(app, { pool }) {
       currentPath: req.path,
       hero: {
         eyebrow: "Collection Search",
-        title: "Explore artworks, exhibitions, inventory, and museum operations data",
-        description: "The search tools now feel closer to a museum collections page, with imagery, clearer categories, and tabbed browsing.",
+        title: "Collection",
+        description: "",
         imagePath: "/images/the-farnese-hours.jpg",
         alt: "Museum collection artwork.",
       },
       featureCards: [
-        { eyebrow: "Collections", title: "Artwork Search", description: "Find works by title, artist, style, type, and period.", href: "#artwork-search-panel", linkLabel: "Search Artwork", imagePath: "/images/allegory.jpg", alt: "Artwork search card." },
-        { eyebrow: "Exhibitions", title: "Current and Upcoming", description: "Review exhibition timing and collection placement.", href: "#exhibition-panel", linkLabel: "View Exhibitions", imagePath: "/images/spring-collection.jpg", alt: "Exhibition card." },
-        { eyebrow: "Operations", title: "Gift Shop and Cafe", description: "Search retail and cafe inventory through the same top-level museum tools.", href: "#gift-panel", linkLabel: "Browse Inventory", imagePath: "/images/giftshop-placeholder.svg", alt: "Inventory card." },
+        { eyebrow: "Collections", title: "Artwork", description: "", href: "/queries?view=artwork-status#query-tabs", linkLabel: "View Artwork", imagePath: "/images/allegory.jpg", alt: "Artwork search card." },
+        { eyebrow: "Exhibitions", title: "Exhibitions", description: "", href: "/queries?view=exhibition-dates#query-tabs", linkLabel: "View Exhibitions", imagePath: "/images/spring-collection.jpg", alt: "Exhibition card." },
+        { eyebrow: "Operations", title: "Shop and Cafe", description: "", href: "/queries?view=gift-inventory#query-tabs", linkLabel: "Browse Inventory", imagePath: "/images/gift-shop.jpg", alt: "Gift shop display." },
       ],
       content: `
-        <section class="card narrow">
+        <section class="card narrow" id="query-tabs">
           <div class="tab-bar" data-tab-group="queries">
             <button class="tab-button" type="button" data-tab-target="artwork-status">Artwork Status</button>
-            <button class="tab-button" type="button" data-tab-target="staff-exhibitions">Staffing</button>
+            ${canViewStaffing ? '<button class="tab-button" type="button" data-tab-target="staff-exhibitions">Staffing</button>' : ""}
             <button class="tab-button" type="button" data-tab-target="artwork-search">Artwork Search</button>
             <button class="tab-button" type="button" data-tab-target="exhibition-dates">Exhibitions</button>
             <button class="tab-button" type="button" data-tab-target="gift-inventory">Gift Shop</button>
@@ -351,6 +389,7 @@ function registerQueriesRoutes(app, { pool }) {
           </table>
         </section>
 
+        ${canViewStaffing ? `
         <section class="card narrow tab-panel" data-tab-group="queries" data-tab-panel="staff-exhibitions">
           <h2>Exhibition Guides and Staffing</h2>
           <form method="get" action="/queries" class="form-grid">
@@ -379,6 +418,7 @@ function registerQueriesRoutes(app, { pool }) {
             <tbody>${staffExhibitionRows || `<tr><td colspan="${isSuper ? 5 : isEmp ? 4 : 3}">No assignments found for upcoming exhibitions.</td></tr>`}</tbody>
           </table>
         </section>
+        ` : ""}
 
         <section class="card narrow tab-panel" data-tab-group="queries" data-tab-panel="artwork-search" id="artwork-search-panel">
           <h2>Artwork Search</h2>

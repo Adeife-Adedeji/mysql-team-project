@@ -12,6 +12,36 @@ const app = express();
 const port = process.env.PORT || 3000;
 const pool = createPool(process.env);
 
+async function ensureImageUrlColumns() {
+  const columns = [
+    ["Department", "Image_URL VARCHAR(255)"],
+    ["Artist", "Image_URL VARCHAR(255)"],
+    ["Exhibition", "Image_URL VARCHAR(255)"],
+    ["Artwork", "Image_URL VARCHAR(255)"],
+    ["Gift_Shop_Item", "Image_URL VARCHAR(255)"],
+    ["Food", "Image_URL VARCHAR(255)"],
+    ["Membership", "Image_URL VARCHAR(255)"],
+    ["Employee", "Image_URL VARCHAR(255)"],
+    ["Event", "Image_URL VARCHAR(255)"],
+    ["Institution", "Image_URL VARCHAR(255)"],
+    ["Tour", "Image_URL VARCHAR(255)"],
+  ];
+
+  for (const [tableName, definition] of columns) {
+    try {
+      await pool.query(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+    } catch (error) {
+      if (!["ER_DUP_FIELDNAME", "ER_NO_SUCH_TABLE"].includes(error.code)) {
+        throw error;
+      }
+    }
+  }
+}
+
+ensureImageUrlColumns().catch((error) => {
+  console.error("Unable to ensure optional image URL columns:", error.message);
+});
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(

@@ -3,9 +3,11 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getCafeAsset,
   renderFlash,
   renderPage,
   requireLogin,
+  sanitizeImageUrl,
   setFlash,
   allowRoles,
   logTriggerViolation
@@ -15,38 +17,36 @@ const CAFE_TYPES = ["Food", "Drink", "Dessert", "Snack", "Other"];
 
 function registerCafeRoutes(app, { pool }) {
 
-  async function hasFoodTypeColumn() {
+  async function hasColumn(tableName, columnName) {
     const [rows] = await pool.query(
       `SELECT 1
        FROM information_schema.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'Food'
-         AND COLUMN_NAME = 'Type'
-       LIMIT 1`
+         AND TABLE_NAME = ?
+         AND COLUMN_NAME = ?
+       LIMIT 1`,
+      [tableName, columnName],
     );
 
     return rows.length > 0;
   }
 
-  async function hasFoodStockColumn() {
-    const [rows] = await pool.query(
-      `SELECT 1
-       FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'Food'
-         AND COLUMN_NAME = 'Stock_Quantity'
-       LIMIT 1`
-    );
+  async function hasFoodTypeColumn() {
+    return hasColumn("Food", "Type");
+  }
 
-    return rows.length > 0;
+  async function hasFoodStockColumn() {
+    return hasColumn("Food", "Stock_Quantity");
   }
 
   app.get("/add-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
     const foodHasTypeColumn = await hasFoodTypeColumn();
     const foodHasStockColumn = await hasFoodStockColumn();
+    const foodHasImageUrlColumn = await hasColumn("Food", "Image_URL");
     const [foods] = await pool.query(
       `SELECT Food_ID, Food_Name, ${foodHasTypeColumn ? "Type" : "NULL"} AS Type, Food_Price,
-              ${foodHasStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
+              ${foodHasStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity,
+              ${foodHasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL
        FROM Food`
     );
     const isSuper = req.session.user.role === "supervisor";
@@ -83,6 +83,7 @@ function registerCafeRoutes(app, { pool }) {
         <td>$${Number(food.Food_Price).toFixed(2)}</td>
         <td>${food.Stock_Quantity}</td>
         <td>${statusHtml}</td>
+        <td>${food.Image_URL ? `<img src="${escapeHtml(food.Image_URL)}" alt="${escapeHtml(food.Food_Name)} preview" class="table-thumb">` : "—"}</td>
         <td class="actions">
           <form method="get" action="/add-food" class="inline-form">
             <input type="hidden" name="edit_id" value="${food.Food_ID}">
@@ -101,6 +102,7 @@ function registerCafeRoutes(app, { pool }) {
     res.send(renderPage({
       title: "Manage Café Items",
       user: req.session.user,
+      showPortalBanner: false,
       content: `
       <section class="card narrow">
         <h1>${editFood ? "Edit Café Item" : "Add Café Item"}</h1>
@@ -125,8 +127,12 @@ function registerCafeRoutes(app, { pool }) {
             <input type="number" name="stock"
             value="${editFood ? editFood.Stock_Quantity : ""}" required>
           </label>` : ""}
+          <label>Image
+            <input type="text" name="image_url"
+            value="${editFood ? escapeHtml(editFood.Image_URL || "") : ""}" placeholder="cappuccino.jpg, /images/cappuccino.jpg, or https://...">
+          </label>
           <button class="button" type="submit">
-            ${editFood ? "Update Item" : "Add Item"}
+            ${editFood ? "Save Item" : "Create Item"}
           </button>
         </form>
       </section>
@@ -135,17 +141,18 @@ function registerCafeRoutes(app, { pool }) {
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Image</th>
               <th>Name</th>
               <th>Type</th>
               <th>Price</th>
               <th>Stock</th>
               <th>Status</th>
+              <th>Image</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${foodRows || '<tr><td colspan="7">No café items found.</td></tr>'}
+            ${foodRows || '<tr><td colspan="8">No café items found.</td></tr>'}
           </tbody>
         </table>
       </section>
@@ -158,6 +165,8 @@ function registerCafeRoutes(app, { pool }) {
     const { food_name: foodName, food_price: foodPrice, stock, type } = req.body;
     const foodHasTypeColumn = await hasFoodTypeColumn();
     const foodHasStockColumn = await hasFoodStockColumn();
+    const foodHasImageUrlColumn = await hasColumn("Food", "Image_URL");
+    const imageUrl = sanitizeImageUrl(req.body.image_url) || null;
     const parsedPrice = Number.parseFloat(foodPrice);
     const parsedStock = foodHasStockColumn ? Number.parseInt(stock, 10) : null;
 
@@ -174,51 +183,43 @@ function registerCafeRoutes(app, { pool }) {
       return res.redirect(foodId ? `/add-food?edit_id=${foodId}` : "/add-food");
     }
     if (foodId) {
-      if (foodHasTypeColumn && foodHasStockColumn) {
-        await pool.query(
-          "UPDATE Food SET Food_Name = ?, Food_Price = ?, Stock_Quantity = ?, Type = ? WHERE Food_ID = ?",
-          [foodName, parsedPrice, parsedStock, type, foodId],
-        );
-      } else if (foodHasStockColumn) {
-        await pool.query(
-          "UPDATE Food SET Food_Name = ?, Food_Price = ?, Stock_Quantity = ? WHERE Food_ID = ?",
-          [foodName, parsedPrice, parsedStock, foodId],
-        );
-      } else if (foodHasTypeColumn) {
-        await pool.query(
-          "UPDATE Food SET Food_Name = ?, Food_Price = ?, Type = ? WHERE Food_ID = ?",
-          [foodName, parsedPrice, type, foodId],
-        );
-      } else {
-        await pool.query(
-          "UPDATE Food SET Food_Name = ?, Food_Price = ? WHERE Food_ID = ?",
-          [foodName, parsedPrice, foodId],
-        );
+      const assignments = ["Food_Name = ?", "Food_Price = ?"];
+      const values = [foodName, parsedPrice];
+      if (foodHasStockColumn) {
+        assignments.push("Stock_Quantity = ?");
+        values.push(parsedStock);
       }
-      setFlash(req, "Item updated.");
+      if (foodHasTypeColumn) {
+        assignments.push("Type = ?");
+        values.push(type);
+      }
+      if (foodHasImageUrlColumn) {
+        assignments.push("Image_URL = ?");
+        values.push(imageUrl);
+      }
+      values.push(foodId);
+      await pool.query(`UPDATE Food SET ${assignments.join(", ")} WHERE Food_ID = ?`, values);
+      setFlash(req, "Café item updated.");
     } else {
-      if (foodHasTypeColumn && foodHasStockColumn) {
-        await pool.query(
-          "INSERT INTO Food (Food_Name, Food_Price, Stock_Quantity, Type) VALUES (?, ?, ?, ?)",
-          [foodName, parsedPrice, parsedStock, type],
-        );
-      } else if (foodHasStockColumn) {
-        await pool.query(
-          "INSERT INTO Food (Food_Name, Food_Price, Stock_Quantity) VALUES (?, ?, ?)",
-          [foodName, parsedPrice, parsedStock],
-        );
-      } else if (foodHasTypeColumn) {
-        await pool.query(
-          "INSERT INTO Food (Food_Name, Food_Price, Type) VALUES (?, ?, ?)",
-          [foodName, parsedPrice, type],
-        );
-      } else {
-        await pool.query(
-          "INSERT INTO Food (Food_Name, Food_Price) VALUES (?, ?)",
-          [foodName, parsedPrice],
-        );
+      const columns = ["Food_Name", "Food_Price"];
+      const values = [foodName, parsedPrice];
+      if (foodHasStockColumn) {
+        columns.push("Stock_Quantity");
+        values.push(parsedStock);
       }
-      setFlash(req, "Item added.");
+      if (foodHasTypeColumn) {
+        columns.push("Type");
+        values.push(type);
+      }
+      if (foodHasImageUrlColumn) {
+        columns.push("Image_URL");
+        values.push(imageUrl);
+      }
+      await pool.query(
+        `INSERT INTO Food (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+        values,
+      );
+      setFlash(req, "Café item created.");
     }
     res.redirect("/add-food");
   }));
@@ -226,7 +227,7 @@ function registerCafeRoutes(app, { pool }) {
   app.post("/delete-food", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.food_id;
     if (!idToDelete) {
-      setFlash(req, "No cafe item ID provided.");
+      setFlash(req, "Select a café item before deleting.");
       return res.redirect("/add-food");
     }
 
@@ -235,7 +236,7 @@ function registerCafeRoutes(app, { pool }) {
       setFlash(req, "Café item deleted.");
     } catch (err) {
       if (err.code === "ER_ROW_IS_REFERENCED_2" || err.code === "ER_ROW_IS_REFERENCED") {
-        setFlash(req, "Cannot delete: this item has existing sale records.");
+        setFlash(req, "This item is linked to existing sale records and cannot be deleted.");
       } else {
         throw err;
       }
@@ -244,7 +245,40 @@ function registerCafeRoutes(app, { pool }) {
   }));
 
   app.get("/add-food-sale", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
-    const [sales] = await pool.query("SELECT Food_Sale_ID, Sale_Date, Employee_ID FROM Food_Sale");
+    const foodHasTypeColumn = await hasFoodTypeColumn();
+    const foodHasImageUrlColumn = await hasColumn("Food", "Image_URL");
+    const [sales] = await pool.query(`
+      SELECT
+        fs.Food_Sale_ID,
+        fs.Sale_Date,
+        fs.Employee_ID,
+        (
+          SELECT f.Food_Name
+          FROM Food_Sale_Line fsl
+          JOIN Food f ON f.Food_ID = fsl.Food_ID
+          WHERE fsl.Food_Sale_ID = fs.Food_Sale_ID
+          ORDER BY fsl.Food_ID
+          LIMIT 1
+        ) AS First_Item_Name,
+        (
+          SELECT ${foodHasTypeColumn ? "f.Type" : "NULL"}
+          FROM Food_Sale_Line fsl
+          JOIN Food f ON f.Food_ID = fsl.Food_ID
+          WHERE fsl.Food_Sale_ID = fs.Food_Sale_ID
+          ORDER BY fsl.Food_ID
+          LIMIT 1
+        ) AS First_Item_Type,
+        (
+          SELECT ${foodHasImageUrlColumn ? "f.Image_URL" : "NULL"}
+          FROM Food_Sale_Line fsl
+          JOIN Food f ON f.Food_ID = fsl.Food_ID
+          WHERE fsl.Food_Sale_ID = fs.Food_Sale_ID
+          ORDER BY fsl.Food_ID
+          LIMIT 1
+        ) AS First_Item_Image_URL
+      FROM Food_Sale fs
+      ORDER BY fs.Sale_Date DESC, fs.Food_Sale_ID DESC
+    `);
 
     let editSale = null;
 
@@ -274,9 +308,13 @@ function registerCafeRoutes(app, { pool }) {
       editSale = rows[0] || null;
     }
 
-    const saleRows = sales.map((sale) => `
+    const saleRows = sales.map((sale) => {
+      const itemName = sale.First_Item_Name || "Sale pending items";
+      const asset = getCafeAsset(itemName, sale.First_Item_Type, sale.First_Item_Image_URL);
+      return `
       <tr>
-        <td>#${sale.Food_Sale_ID}</td>
+        <td><img src="${asset.imagePath}" alt="${asset.alt}" class="table-thumb"></td>
+        <td>${escapeHtml(itemName)}</td>
         <td>${formatDisplayDate(sale.Sale_Date)}</td>
         <td>${escapeHtml(sale.Employee_ID)}</td>
         <td class="actions">
@@ -290,11 +328,13 @@ function registerCafeRoutes(app, { pool }) {
           </form>
         </td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
     res.send(renderPage({
       title: "Add Café Sale",
       user: req.session.user,
+      showPortalBanner: false,
       content: `
       <section class="card narrow">
         <h2>Today's Sales Summary</h2>
@@ -323,7 +363,7 @@ function registerCafeRoutes(app, { pool }) {
             value="${editSale ? formatDateInput(editSale.Sale_Date) : ""}" required>
           </label>
             <button class="button" type="submit">
-            ${editSale ? "Update Sale" : "Create Sale"}
+            ${editSale ? "Save Sale" : "Create Sale"}
           </button>
         </form>
       </section>
@@ -333,12 +373,13 @@ function registerCafeRoutes(app, { pool }) {
           <thead>
             <tr>
               <th>ID</th>
+              <th>Item</th>
               <th>Date</th>
               <th>Employee ID</th>
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>${saleRows || '<tr><td colspan="4">No café sales found.</td></tr>'}</tbody>
+          <tbody>${saleRows || '<tr><td colspan="5">No café sales found.</td></tr>'}</tbody>
         </table>
       </section>
     `,
@@ -360,7 +401,7 @@ function registerCafeRoutes(app, { pool }) {
       [saleDate, saleId],
     );
 
-    setFlash(req, "Café sale updated.");
+    setFlash(req, "Café sale record updated.");
     return res.redirect("/add-food-sale-line");
   } else {
       let employeeId = req.session.user.employeeId;
@@ -372,7 +413,7 @@ function registerCafeRoutes(app, { pool }) {
         employeeId = empRows[0]?.Employee_ID || null;
       }
       if (!employeeId) {
-        setFlash(req, "Employee record not found. Please contact a supervisor.");
+        setFlash(req, "Employee record not found. Contact a supervisor.");
         return res.redirect("/add-food-sale");
       }
       const [result] = await pool.query(
@@ -380,7 +421,7 @@ function registerCafeRoutes(app, { pool }) {
         [saleDate, employeeId],
       );
       req.session.currentFoodSaleId = result.insertId;
-      setFlash(req, "Order started. Now add items.");
+      setFlash(req, "Order created. Add items to complete the record.");
   }
     res.redirect("/add-food-sale-line");
   }));
@@ -446,15 +487,16 @@ function registerCafeRoutes(app, { pool }) {
     res.send(renderPage({
       title: "Add Items to Order",
       user: req.session.user,
+      showPortalBanner: false,
       content: `
       <section class="card narrow">
         <h1>${editLine ? "Edit Item in Order" : "Add Items to Order"}</h1>
         ${renderFlash(req)}
         ${!currentSaleId ? `
-          <p style="color:#c0392b;">No active order. Please <a href="/add-food-sale">start a new order</a> first.</p>
+          <p style="color:#c0392b;">No order is active. <a href="/add-food-sale">Create an order</a> before adding items.</p>
         ` : `
           <p style="color:#555; margin-bottom:1rem;">Current Order: <strong>Order #${currentSaleId}</strong> &nbsp;
-            <a href="/add-food-sale" style="font-size:0.85rem;">Start new order</a>
+            <a href="/add-food-sale" style="font-size:0.85rem;">Create another order</a>
           </p>
           <form method="post" action="/add-food-sale" class="form-grid" style="margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid #eee;">
             <input type="hidden" name="sale_id" value="${currentSaleId}">
@@ -474,7 +516,7 @@ function registerCafeRoutes(app, { pool }) {
           <label>Quantity<input type="number" name="quantity" 
           value="${editLine ? editLine.Quantity : ""}" required></label>
           <button class="button" type="submit">
-              ${editLine ? "Update Item" : "Add Item"}
+              ${editLine ? "Save Item" : "Add Item"}
             </button>
           </form>
         `}
@@ -550,104 +592,118 @@ function registerCafeRoutes(app, { pool }) {
   app.get("/order", requireLogin, allowRoles(["cafe", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const foodHasTypeColumn = await hasFoodTypeColumn();
     const foodHasStockColumn = await hasFoodStockColumn();
+    const foodHasImageUrlColumn = await hasColumn("Food", "Image_URL");
     const [foods] = await pool.query(
       `SELECT Food_ID, Food_Name, ${foodHasTypeColumn ? "Type" : "NULL"} AS Type, Food_Price,
-              ${foodHasStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity
+              ${foodHasStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity,
+              ${foodHasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL
        FROM Food`
     );
     const cart = req.session.cart || [];
     const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
-
-    const menuRows = foods.map(food => {
-      const stockLabel = !foodHasStockColumn
-        ? '<span style="color:#666;font-size:0.85rem;">Stock unavailable</span>'
-        : food.Stock_Quantity === 0
-        ? '<span style="color:#c0392b;font-size:0.85rem;">Out of Stock</span>'
-        : food.Stock_Quantity <= 5
-          ? `<span style="color:#e67e22;font-size:0.85rem;">${food.Stock_Quantity} left</span>`
-          : `<span style="color:#27ae60;font-size:0.85rem;">In Stock</span>`;
-      return `
-        <tr>
-          <td>${escapeHtml(food.Food_Name)}</td>
-          <td>${escapeHtml(food.Type || "—")}</td>
-          <td>$${Number(food.Food_Price).toFixed(2)}</td>
-          <td>${stockLabel}</td>
-          <td>${!foodHasStockColumn || food.Stock_Quantity > 0
-            ? `<form method="post" action="/order/add-item" class="inline-form">
-                <input type="hidden" name="food_id" value="${food.Food_ID}">
-                <input type="number" name="quantity" value="1" min="1" ${foodHasStockColumn ? `max="${food.Stock_Quantity}"` : ""} style="width:5.5rem;margin-right:0.5rem;">
-                <button class="button" type="submit" style="padding:0.3rem 0.8rem;">Add</button>
-               </form>`
-            : '<span style="color:#aaa;">Unavailable</span>'
-          }</td>
-        </tr>`;
-    }).join('');
-
+    const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
     const cartRows = cart.map(item => `
-      <tr>
-        <td>${escapeHtml(item.name)}</td>
-        <td>$${Number(item.price).toFixed(2)}</td>
-        <td>${item.qty}</td>
-        <td>$${(item.price * item.qty).toFixed(2)}</td>
-        <td>
-        <form method="post" action="/order/update-item" class="inline-form">
-          <input type="hidden" name="food_id" value="${item.id}">
-          <input type="number" name="quantity" value="${item.qty}" min="1" style="width:4rem;">
-          <button class="link-button" type="submit">Edit</button>
-        </form>
-          <form method="post" action="/order/remove-item" class="inline-form">
-            <input type="hidden" name="food_id" value="${item.id}">
-            <button class="link-button danger" type="submit">Remove</button>
-          </form>
-        </td>
-      </tr>`).join('');
+      <li>
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>$${Number(item.price).toFixed(2)} x ${item.qty}</span>
+        </div>
+        <span>$${(item.price * item.qty).toFixed(2)}</span>
+      </li>
+    `).join("");
 
     res.send(renderPage({
-      title: "New Café Order",
+      title: "Café POS",
       user: req.session.user,
+      currentPath: req.path,
+      showPortalBanner: false,
       content: `
-      <section class="card narrow">
-        <h1>New Café Order</h1>
-        ${renderFlash(req)}
-        <h2>Menu</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Type</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>${menuRows || '<tr><td colspan="5">No café items available.</td></tr>'}</tbody>
-        </table>
-      </section>
-      <section class="card narrow">
-        <h2>Cart</h2>
-        ${cart.length === 0
-          ? '<p style="color:#888;">No items in cart yet.</p>'
-          : `<table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Price</th>
-                  <th>Qty</th>
-                  <th>Subtotal</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>${cartRows}</tbody>
-              <tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;">Total</td><td><strong>$${cartTotal.toFixed(2)}</strong></td><td></td></tr></tfoot>
-             </table>
-             <div style="display:flex;gap:1rem;margin-top:1rem;">
-               <a class="button" href="/order/checkout">Checkout</a>
-               <form method="post" action="/order/clear">
-                 <button class="button button-secondary" type="submit">Clear Cart</button>
-               </form>
-             </div>`
-        }
-      </section>`
+      ${renderFlash(req)}
+      <div class="pos-layout">
+        <section class="pos-products">
+          <div class="section-header">
+            <div>
+              <h1>Café</h1>
+            </div>
+            <span class="status-badge status-badge--neutral">${cartCount} item${cartCount === 1 ? "" : "s"}</span>
+          </div>
+          <div class="product-grid">
+            ${foods.map((food) => {
+              const asset = getCafeAsset(food.Food_Name, food.Type, food.Image_URL);
+              const tone = !foodHasStockColumn
+                ? "neutral"
+                : food.Stock_Quantity === 0
+                  ? "danger"
+                  : food.Stock_Quantity <= 5
+                    ? "warning"
+                    : "success";
+              const stockText = !foodHasStockColumn
+                ? "Stock pending"
+                : food.Stock_Quantity === 0
+                  ? "Out of stock"
+                  : food.Stock_Quantity <= 5
+                    ? `${food.Stock_Quantity} left`
+                    : "In stock";
+              return `
+                <article class="product-card pos-product-card">
+                  <div class="product-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
+                  <div class="product-card__body">
+                    <h2>${escapeHtml(food.Food_Name)}</h2>
+                    <div class="product-card__meta">
+                      <span class="status-badge status-badge--neutral">$${Number(food.Food_Price).toFixed(2)}</span>
+                      <span class="status-badge status-badge--${tone}">${escapeHtml(stockText)}</span>
+                    </div>
+                    ${!foodHasStockColumn || food.Stock_Quantity > 0
+                      ? `<form method="post" action="/order/add-item" class="pos-add-form">
+                          <input type="hidden" name="food_id" value="${food.Food_ID}">
+                          <label>Quantity
+                            <input type="number" name="quantity" value="1" min="1" ${foodHasStockColumn ? `max="${food.Stock_Quantity}"` : ""}>
+                          </label>
+                          <button class="button" type="submit">Add</button>
+                        </form>`
+                      : '<span class="status-badge status-badge--danger">Unavailable</span>'}
+                  </div>
+                </article>
+              `;
+            }).join("")}
+          </div>
+        </section>
+        <aside class="order-ledger" aria-label="Current order subtotal">
+          <div>
+            <h2>Current Order</h2>
+          </div>
+          ${cart.length === 0
+            ? '<div class="empty-state"><p>No items in cart.</p></div>'
+            : `<ul class="order-ledger__items">${cartRows}</ul>
+               <div class="order-ledger__edit">
+                ${cart.map(item => `
+                  <div class="order-ledger__line-edit">
+                    <span>${escapeHtml(item.name)}</span>
+                    <form method="post" action="/order/update-item" class="inline-form">
+                      <input type="hidden" name="food_id" value="${item.id}">
+                      <input type="number" name="quantity" value="${item.qty}" min="1" aria-label="Quantity for ${escapeHtml(item.name)}">
+                      <button class="link-button" type="submit">Update</button>
+                    </form>
+                    <form method="post" action="/order/remove-item" class="inline-form">
+                      <input type="hidden" name="food_id" value="${item.id}">
+                      <button class="link-button danger" type="submit">Remove</button>
+                    </form>
+                  </div>
+                `).join("")}
+               </div>
+               <dl class="order-ledger__totals">
+                 <div><dt>Subtotal</dt><dd>$${cartTotal.toFixed(2)}</dd></div>
+                 <div><dt>Total Due</dt><dd>$${cartTotal.toFixed(2)}</dd></div>
+               </dl>
+               <div class="order-ledger__actions">
+                 <a class="button" href="/order/checkout">Checkout</a>
+                 <form method="post" action="/order/clear">
+                   <button class="button button-secondary" type="submit">Clear</button>
+                 </form>
+               </div>`
+          }
+        </aside>
+      </div>`
     }));
   }));
 
@@ -673,6 +729,7 @@ function registerCafeRoutes(app, { pool }) {
     res.send(renderPage({
       title: "Café Checkout",
       user: req.session.user,
+      showPortalBanner: false,
       content: `
       <section class="card narrow">
         <h1>Order Summary</h1>
@@ -691,9 +748,9 @@ function registerCafeRoutes(app, { pool }) {
         </table>
         <div style="display:flex;gap:1rem;margin-top:1.5rem;">
           <form method="post" action="/order/checkout">
-            <button class="button" type="submit">Confirm Order</button>
+            <button class="button" type="submit">Complete Order</button>
           </form>
-          <a class="button button-secondary" href="/order">Back to Cart</a>
+          <a class="button button-secondary" href="/order">Return to Order</a>
         </div>
       </section>`
     }));
@@ -748,7 +805,7 @@ function registerCafeRoutes(app, { pool }) {
   const foodHasStockColumn = await hasFoodStockColumn();
 
   if (!qty || qty < 1) {
-    setFlash(req, "Invalid quantity.");
+    setFlash(req, "Enter a valid quantity.");
     return res.redirect("/order");
   }
 
@@ -791,7 +848,7 @@ function registerCafeRoutes(app, { pool }) {
       employeeId = empRows[0]?.Employee_ID || null;
     }
     if (!employeeId) {
-      setFlash(req, "Employee record not found. Please contact a supervisor.");
+      setFlash(req, "Employee record not found. Contact a supervisor.");
       return res.redirect("/order");
     }
 
@@ -828,7 +885,7 @@ function registerCafeRoutes(app, { pool }) {
 
       const orderTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
       req.session.cart = [];
-      setFlash(req, `Order #${saleId} completed! Total: $${orderTotal.toFixed(2)}`);
+      setFlash(req, `Order #${saleId} completed. Total: $${orderTotal.toFixed(2)}`);
     } catch (error) {
       await connection.rollback();
       if (error.sqlState === "45000") {

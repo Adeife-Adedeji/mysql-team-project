@@ -10,18 +10,34 @@ const {
   renderPager,
   renderPage,
   requireLogin,
+  sanitizeImageUrl,
   setFlash,
   allowRoles,
   logTriggerViolation
 } = require("../helpers");
 
+async function hasColumn(pool, tableName, columnName) {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  return rows.length > 0;
+}
+
 function registerArtworkRoutes (app, { pool }) {
     app.get("/add-artwork", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
     const artworkPage = getPageNumber(req.query.artwork_page);
+    const hasImageUrlColumn = await hasColumn(pool, "Artwork", "Image_URL");
     const [artists] = await pool.query("SELECT Artist_ID, Artist_Name FROM Artist");
     
     if (artists.length === 0) {
-      setFlash(req, "Please add an artist first.");
+      setFlash(req, "Create an artist record before adding artwork.");
       return res.redirect("/add-artist");
     }
 
@@ -35,7 +51,7 @@ function registerArtworkRoutes (app, { pool }) {
     }
 
     const [artworks] = await pool.query(`
-      SELECT Artwork.Artwork_ID, Artwork.Title, Artwork.Type, Artwork.Art_Style, Artwork.Time_Period, Artwork.Artist_ID, Artist.Artist_Name
+      SELECT Artwork.Artwork_ID, Artwork.Title, Artwork.Type, Artwork.Art_Style, Artwork.Time_Period, Artwork.Artist_ID, ${hasImageUrlColumn ? "Artwork.Image_URL" : "NULL"} AS Image_URL, Artist.Artist_Name
       FROM Artwork
       JOIN Artist ON Artwork.Artist_ID = Artist.Artist_ID
     `);
@@ -49,6 +65,7 @@ function registerArtworkRoutes (app, { pool }) {
         <td>${escapeHtml(artwork.Art_Style || "—")}</td>
         <td>${escapeHtml(artwork.Time_Period || "—")}</td>
         <td>${escapeHtml(artwork.Artist_Name)}</td>
+        <td>${artwork.Image_URL ? `<img src="${escapeHtml(artwork.Image_URL)}" alt="${escapeHtml(artwork.Title)} preview" class="table-thumb">` : "—"}</td>
         <td class="actions">
           <form method="get" action="/add-artwork" class="inline-form">
             <input type="hidden" name="edit_id" value="${artwork.Artwork_ID}">
@@ -67,13 +84,17 @@ function registerArtworkRoutes (app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editArtwork ? "Edit Artwork" : "Add New Artwork"}</h1>
+        <h1>${editArtwork ? "Edit Artwork" : "Create Artwork Record"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-artwork" class="form-grid">
           ${editArtwork ? `<input type="hidden" name="artwork_id" value="${editArtwork.Artwork_ID}">` : ""}
           <label>
             Title
             <input type="text" name="title" value="${editArtwork ? escapeHtml(editArtwork.Title) : ""}" required>
+          </label>
+          <label>
+            Image
+            <input type="text" name="image_url" value="${editArtwork ? escapeHtml(editArtwork.Image_URL || "") : ""}" placeholder="allegory.jpg, /images/allegory.jpg, or https://...">
           </label>
           <label>
             Type
@@ -117,7 +138,7 @@ function registerArtworkRoutes (app, { pool }) {
               `).join("")}
             </select>
           </label>
-          <button class="button" type="submit">${editArtwork ? "Update Artwork" : "Add Artwork"}</button>
+          <button class="button" type="submit">${editArtwork ? "Save Artwork" : "Create Artwork"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -132,11 +153,12 @@ function registerArtworkRoutes (app, { pool }) {
               <th>Style</th>
               <th>Period</th>
               <th>Artist Name</th>
+              <th>Image</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${artworkRows || '<tr><td colspan="6">No artworks found.</td></tr>'}
+            ${artworkRows || '<tr><td colspan="8">No artworks found.</td></tr>'}
           </tbody>
         </table>
         ${renderPager(req, "artwork_page", artworkPagination, "artwork-list")}
@@ -151,7 +173,9 @@ function registerArtworkRoutes (app, { pool }) {
     const type = req.body.type?.trim();
     const artStyle = req.body.art_style?.trim() || null;
     const timePeriod = req.body.time_period?.trim() || null;
+    const imageUrl = sanitizeImageUrl(req.body.image_url) || null;
     const artistId = req.body.artist_id;
+    const hasImageUrlColumn = await hasColumn(pool, "Artwork", "Image_URL");
 
     if (!title || !type || !artistId) {
       setFlash(req, "All fields are required.");
@@ -159,18 +183,33 @@ function registerArtworkRoutes (app, { pool }) {
     }
 
     if (id) {
-      await pool.query(
-        "UPDATE Artwork SET Title = ?, Type = ?, Art_Style = ?, Time_Period = ?, Artist_ID = ? WHERE Artwork_ID = ?",
-        [title, type, artStyle, timePeriod, artistId, id],
-      );
-      setFlash(req, "Artwork updated successfully.");
+      if (hasImageUrlColumn) {
+        await pool.query(
+          "UPDATE Artwork SET Title = ?, Type = ?, Art_Style = ?, Time_Period = ?, Artist_ID = ?, Image_URL = ? WHERE Artwork_ID = ?",
+          [title, type, artStyle, timePeriod, artistId, imageUrl, id],
+        );
+      } else {
+        await pool.query(
+          "UPDATE Artwork SET Title = ?, Type = ?, Art_Style = ?, Time_Period = ?, Artist_ID = ? WHERE Artwork_ID = ?",
+          [title, type, artStyle, timePeriod, artistId, id],
+        );
+      }
+      setFlash(req, "Artwork record updated.");
     } else {
-      await pool.query(
-        `INSERT INTO Artwork (Title, Type, Art_Style, Time_Period, Artist_ID)
-         VALUES (?, ?, ?, ?, ?)`,
-        [title, type, artStyle, timePeriod, artistId],
-      );
-      setFlash(req, "Artwork added successfully.");
+      if (hasImageUrlColumn) {
+        await pool.query(
+          `INSERT INTO Artwork (Title, Type, Art_Style, Time_Period, Artist_ID, Image_URL)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [title, type, artStyle, timePeriod, artistId, imageUrl],
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO Artwork (Title, Type, Art_Style, Time_Period, Artist_ID)
+           VALUES (?, ?, ?, ?, ?)`,
+          [title, type, artStyle, timePeriod, artistId],
+        );
+      }
+      setFlash(req, "Artwork record created.");
     }
 
     res.redirect("/add-artwork");
@@ -180,13 +219,13 @@ function registerArtworkRoutes (app, { pool }) {
     const idToDelete = req.body.artwork_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No artwork ID provided.");
+      setFlash(req, "Select an artwork record before deleting.");
       return res.redirect("/add-artwork");
     }
 
     try {
       await pool.query("DELETE FROM Artwork WHERE Artwork_ID = ?", [idToDelete]);
-      setFlash(req, "Artwork successfully deleted!");
+      setFlash(req, "Artwork record deleted.");
     } catch (err) {
       if (err.sqlState === "45000") {
         await logTriggerViolation(pool, req, err.sqlMessage);

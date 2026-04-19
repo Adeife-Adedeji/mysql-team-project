@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS Department (
     Department_ID INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
     Department_Name VARCHAR(30) NOT NULL,
     Manager_ID INT NULL,
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
@@ -18,7 +19,8 @@ CREATE TABLE IF NOT EXISTS Artist (
     Artist_Name VARCHAR(30) NOT NULL,
     Date_of_Birth DATE,
     Date_of_Death DATE NULL,
-    Birth_Place VARCHAR(30)
+    Birth_Place VARCHAR(30),
+    Image_URL VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS Exhibition (
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS Exhibition (
     Exhibition_Name VARCHAR(50) NOT NULL,
     Starting_Date DATE NOT NULL,
     Ending_Date DATE NOT NULL,
+    Image_URL VARCHAR(255),
     CHECK (Ending_Date >= Starting_Date)
 );
 
@@ -35,6 +38,7 @@ CREATE TABLE IF NOT EXISTS Gift_Shop_Item (
     Price_of_Item DECIMAL(10, 2),
     Category VARCHAR(30),
     Stock_Quantity INT,
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
@@ -47,6 +51,7 @@ CREATE TABLE IF NOT EXISTS Food (
     Food_Name VARCHAR(30),
     Type VARCHAR(30),
     Food_Price DECIMAL(4, 2) NOT NULL,
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
@@ -63,6 +68,7 @@ CREATE TABLE IF NOT EXISTS Membership (
     Date_Joined DATE,
     Date_Exited DATE NULL,
     Status ENUM('Active', 'Expired', 'Cancelled') NOT NULL DEFAULT 'Active',
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
@@ -86,6 +92,7 @@ CREATE TABLE IF NOT EXISTS Employee (
     Hourly_Pay DECIMAL(6, 2),
     Salary DECIMAL(10, 2),
     Employee_Role VARCHAR(20),
+    Image_URL VARCHAR(255),
     Supervisor_ID INT NULL,
     Department_ID INT NULL,
     Created_By VARCHAR(30),
@@ -113,6 +120,7 @@ CREATE TABLE IF NOT EXISTS ARTWORK (
     Date_Created DATE,
     Time_Period VARCHAR(30),
     Art_Style VARCHAR(30),
+    Image_URL VARCHAR(255),
     Artist_ID INT NOT NULL,
     Created_By VARCHAR(30),
     Created_At DATE,
@@ -183,6 +191,7 @@ CREATE TABLE IF NOT EXISTS Event (
     updated_by VARCHAR(30),
     updated_at DATE,
     Max_capacity INT NOT NULL,
+    Image_URL VARCHAR(255),
     CONSTRAINT chk_capacity CHECK (Max_capacity > 0),
     CONSTRAINT fk_Event_Coordinator FOREIGN KEY (coordinator_ID) REFERENCES Employee (Employee_ID)
 );
@@ -245,6 +254,7 @@ CREATE TABLE IF NOT EXISTS Institution (
     Contact_Phone VARCHAR(15),
     City VARCHAR(50),
     Country VARCHAR(50),
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),
@@ -285,6 +295,7 @@ CREATE TABLE IF NOT EXISTS Tour (
     Guide_ID INT NULL,
     Exhibition_ID INT NULL,
     Language VARCHAR(30) NOT NULL DEFAULT 'English',
+    Image_URL VARCHAR(255),
     Created_By VARCHAR(30),
     Created_At DATE,
     Updated_By VARCHAR(30),

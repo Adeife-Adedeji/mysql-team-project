@@ -3,6 +3,7 @@ const {
   escapeHtml,
   formatDateInput,
   formatDisplayDate,
+  getArtworkAsset,
   renderFlash,
   renderPage,
   requireLogin,
@@ -15,7 +16,7 @@ function registerConservationRoutes(app, { pool }) {
   app.get("/condition-reports", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
 
     const [artworks] = await pool.query(`
-      SELECT AW.Artwork_ID, AW.Title, AR.Artist_Name
+      SELECT AW.Artwork_ID, AW.Title, AW.Type, AW.Image_URL, AR.Artist_Name
       FROM Artwork AW
       JOIN Artist AR ON AW.Artist_ID = AR.Artist_ID
       ORDER BY AW.Title
@@ -32,6 +33,8 @@ function registerConservationRoutes(app, { pool }) {
       SELECT
         AW.Artwork_ID,
         AW.Title,
+        AW.Type,
+        AW.Image_URL,
         AR.Artist_Name,
         CR.Condition_Status,
         CR.Report_Date,
@@ -59,19 +62,15 @@ function registerConservationRoutes(app, { pool }) {
     const preselectedArtwork = req.query.artwork_id || "";
 
     const tableRows = conditionRows.map((row) => {
-      const statusColors = {
-        Critical: "color:crimson;font-weight:bold",
-        Poor:     "color:darkorange;font-weight:bold",
-        Fair:     "color:goldenrod",
-        Good:     "color:seagreen",
-        Excellent:"color:steelblue"
-      };
-      const style = statusColors[row.Condition_Status] || "";
+      const status = row.Condition_Status || "No report yet";
+      const statusClass = String(status).toLowerCase().replace(/\s+/g, "-");
+      const asset = getArtworkAsset(row.Title, row.Type, row.Image_URL);
       return `
         <tr>
+          <td><img src="${escapeHtml(asset.imagePath)}" alt="${escapeHtml(asset.alt)}" class="table-thumb"></td>
           <td>${escapeHtml(row.Title)}</td>
           <td>${escapeHtml(row.Artist_Name)}</td>
-          <td style="${style}">${escapeHtml(row.Condition_Status || "No report yet")}</td>
+          <td><span class="condition-badge condition-badge--${escapeHtml(statusClass)}">${escapeHtml(status)}</span></td>
           <td>${row.Restoration_Required ? "Yes" : row.Condition_Status ? "No" : "—"}</td>
           <td>${formatDisplayDate(row.Report_Date)}</td>
           <td>${escapeHtml(row.Inspector_Name || "—")}</td>
@@ -88,9 +87,7 @@ function registerConservationRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Collections Management</p>
         <h1>File Condition Report</h1>
-        <p class="dashboard-note">Log the physical condition of an artwork. If status is <strong>Poor</strong> or <strong>Critical</strong>, restoration will be flagged automatically by the database.</p>
         ${renderFlash(req)}
         <form method="post" action="/condition-reports" class="form-grid">
           <label>Artwork
@@ -139,10 +136,10 @@ function registerConservationRoutes(app, { pool }) {
 
       <section class="card narrow">
         <h2>Current Condition — All Artworks</h2>
-        <p class="dashboard-note">Showing the most recent report per artwork. Critical and Poor artworks are sorted to the top.</p>
         <table>
           <thead>
             <tr>
+              <th>Image</th>
               <th>Title</th>
               <th>Artist</th>
               <th>Condition</th>
@@ -153,7 +150,7 @@ function registerConservationRoutes(app, { pool }) {
             </tr>
           </thead>
           <tbody>
-            ${tableRows || '<tr><td colspan="7">No artworks found.</td></tr>'}
+            ${tableRows || '<tr><td colspan="8">No artworks found.</td></tr>'}
           </tbody>
         </table>
       </section>
@@ -193,7 +190,7 @@ function registerConservationRoutes(app, { pool }) {
       ]
     );
 
-    setFlash(req, "Condition report filed successfully.");
+    setFlash(req, "Condition report filed.");
     res.redirect("/condition-reports");
   }));
 
@@ -208,7 +205,7 @@ function registerConservationRoutes(app, { pool }) {
     }
 
     const [[artwork]] = await pool.query(
-      `SELECT AW.Title, AR.Artist_Name
+      `SELECT AW.Title, AW.Type, AW.Image_URL, AR.Artist_Name
        FROM Artwork AW JOIN Artist AR ON AW.Artist_ID = AR.Artist_ID
        WHERE AW.Artwork_ID = ?`,
       [artworkId]
@@ -230,23 +227,27 @@ function registerConservationRoutes(app, { pool }) {
       [artworkId]
     );
 
-    const historyRows = reports.map((r) => `
+    const asset = getArtworkAsset(artwork.Title, artwork.Type, artwork.Image_URL);
+    const historyRows = reports.map((r) => {
+      const statusClass = String(r.Condition_Status || "pending").toLowerCase().replace(/\s+/g, "-");
+      return `
       <tr>
-        <td>${escapeHtml(r.Condition_Status)}</td>
+        <td><span class="condition-badge condition-badge--${escapeHtml(statusClass)}">${escapeHtml(r.Condition_Status)}</span></td>
         <td>${r.Restoration_Required ? "Yes" : "No"}</td>
         <td>${formatDisplayDate(r.Report_Date)}</td>
         <td>${escapeHtml(r.Inspector_Name || "—")}</td>
         <td>${escapeHtml(r.Notes || "—")}</td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
     res.send(renderPage({
       title: `Condition History — ${artwork.Title}`,
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Condition History</p>
         <h1>${escapeHtml(artwork.Title)}</h1>
+        <img src="${escapeHtml(asset.imagePath)}" alt="${escapeHtml(asset.alt)}" class="detail-hero-image">
         <p class="dashboard-note">Artist: ${escapeHtml(artwork.Artist_Name)}</p>
         ${renderFlash(req)}
         <p><a href="/condition-reports">← Back to all artworks</a></p>

@@ -4,11 +4,123 @@ const {
   formatDisplayDate,
   getPageNumber,
   paginateRows,
+  renderFlash,
   renderPage,
   renderPager,
   requireLogin,
-  allowRoles
+  allowRoles,
+  setFlash
 } = require("../helpers");
+
+function numberValue(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function renderReportKpis(items) {
+  return `
+    <div class="report-kpi-grid">
+      ${items.map((item) => `
+        <article class="report-kpi-card">
+          <p>${escapeHtml(item.label)}</p>
+          <strong>${escapeHtml(item.value)}</strong>
+          ${item.note ? `<span>${escapeHtml(item.note)}</span>` : ""}
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderBarChart({ title, rows, labelKey, valueKey, valuePrefix = "", valueSuffix = "", emptyText = "No chart data available." }) {
+  const data = rows.slice(0, 8).map((row) => ({
+    label: String(row[labelKey] ?? "Unlabeled"),
+    value: numberValue(row[valueKey]),
+  }));
+  const max = Math.max(...data.map((item) => item.value), 0);
+
+  if (!data.length || max <= 0) {
+    return `<div class="report-chart-card"><h3>${escapeHtml(title)}</h3><div class="empty-state"><p>${escapeHtml(emptyText)}</p></div></div>`;
+  }
+
+  return `
+    <div class="report-chart-card report-chart-card--bars">
+      <div class="report-chart-card__header">
+        <h3>${escapeHtml(title)}</h3>
+        <span>Top ${data.length}</span>
+      </div>
+      <div class="report-bars">
+        ${data.map((item, index) => {
+          const size = Math.max((item.value / max) * 100, 4);
+          return `
+            <div class="report-bar-row" style="--bar-size:${size}%; --delay:${index * 55}ms;">
+              <span>${escapeHtml(item.label)}</span>
+              <div><i></i></div>
+              <strong>${escapeHtml(`${valuePrefix}${item.value.toFixed(valuePrefix ? 2 : 0)}${valueSuffix}`)}</strong>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderStackedChart({ title, items }) {
+  const total = items.reduce((sum, item) => sum + numberValue(item.value), 0);
+  const stackColors = ["var(--accent)", "var(--header)", "var(--warning)", "var(--success)"];
+
+  if (total <= 0) {
+    return `<div class="report-chart-card"><h3>${escapeHtml(title)}</h3><div class="empty-state"><p>No chart data available.</p></div></div>`;
+  }
+
+  return `
+    <div class="report-chart-card">
+      <div class="report-chart-card__header">
+        <h3>${escapeHtml(title)}</h3>
+        <span>$${total.toFixed(2)}</span>
+      </div>
+      <div class="report-stack" aria-label="${escapeHtml(title)}">
+        ${items.map((item, index) => {
+          const pct = (numberValue(item.value) / total) * 100;
+          return `<span style="--stack-size:${pct}%; background:${stackColors[index % stackColors.length]};" title="${escapeHtml(item.label)} ${pct.toFixed(0)}%"></span>`;
+        }).join("")}
+      </div>
+      <div class="report-legend">
+        ${items.map((item, index) => `
+          <span><i style="background:${stackColors[index % stackColors.length]};"></i>${escapeHtml(item.label)} · $${numberValue(item.value).toFixed(2)}</span>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderCapacityChart(title, rows, labelKey, registeredKey, capacityKey) {
+  const chartRows = rows.slice(0, 8).map((row) => {
+    const registered = numberValue(row[registeredKey]);
+    const capacity = Math.max(numberValue(row[capacityKey]), 1);
+    return {
+      label: String(row[labelKey] ?? "Untitled"),
+      value: Math.min((registered / capacity) * 100, 100),
+      detail: `${registered} / ${capacity}`,
+    };
+  });
+
+  return renderBarChart({
+    title,
+    rows: chartRows,
+    labelKey: "label",
+    valueKey: "value",
+    valueSuffix: "%",
+    emptyText: "No attendance data available.",
+  }).replaceAll(".00%", "%");
+}
+
+function hasDateMismatch(start, end) {
+  return Boolean(start && end && start > end);
+}
+
+function findInvalidDateRange(ranges) {
+  return ranges.find((range) => hasDateMismatch(range.start, range.end)) || null;
+}
 
 function registerReportsRoutes(app, { pool }) {
     
@@ -32,6 +144,8 @@ function registerReportsRoutes(app, { pool }) {
     const attendanceEnd = req.query.attendance_end?.trim() || null;
     const scheduleStart = req.query.schedule_start?.trim() || null;
     const scheduleEnd = req.query.schedule_end?.trim() || null;
+    const consolidatedStart = req.query.consolidated_start?.trim() || null;
+    const consolidatedEnd = req.query.consolidated_end?.trim() || null;
     const scheduleDepartment = req.query.schedule_department?.trim() || null;
     const scheduleDuty = req.query.schedule_duty?.trim() || null;
     const consolidatedPage = getPageNumber(req.query.consolidated_page);
@@ -45,14 +159,25 @@ function registerReportsRoutes(app, { pool }) {
     const eventAttendancePage = getPageNumber(req.query.event_attendance_page);
     const tourAttendancePage = getPageNumber(req.query.tour_attendance_page);
     const schedulePage = getPageNumber(req.query.schedule_page);
+    const invalidRange = findInvalidDateRange([
+      { label: "Ticket sales", start: salesStart, end: salesEnd },
+      { label: "Exhibition revenue", start: revenueStart, end: revenueEnd },
+      { label: "Gift shop", start: giftStart, end: giftEnd },
+      { label: "Cafe", start: cafeStart, end: cafeEnd },
+      { label: "Membership", start: membershipStart, end: membershipEnd },
+      { label: "Attendance", start: attendanceStart, end: attendanceEnd },
+      { label: "Schedule", start: scheduleStart, end: scheduleEnd },
+      { label: "Financial summary", start: consolidatedStart, end: consolidatedEnd },
+    ]);
 
-    // Shared lookup data for dropdowns
-    const [departmentList] = await pool.query(
-      `SELECT Department_Name FROM Department ORDER BY Department_Name`
-    );
-    const [dutyList] = await pool.query(
-      `SELECT DISTINCT Duty FROM Schedule WHERE Duty IS NOT NULL ORDER BY Duty`
-    );
+    if (invalidRange) {
+      setFlash(req, `${invalidRange.label} start date cannot be after end date.`);
+      return res.redirect("/reports");
+    }
+
+    // Employee directory and schedule views live under operational query/admin screens, not reports.
+    const departmentList = [];
+    const dutyList = [];
 
     const [ticketSalesRows] = await pool.query(
       `SELECT T.Visit_Date, T.Purchase_type, TL.Ticket_Type,
@@ -96,18 +221,7 @@ function registerReportsRoutes(app, { pool }) {
       ]
     );
 
-    const [employeeRows] = await pool.query(
-      `SELECT CONCAT(E.First_Name, ' ', E.Last_Name) AS Employee_Name,
-              E.Employee_Role,
-              D.Department_Name,
-              CONCAT(S.First_Name, ' ', S.Last_Name) AS Supervisor_Name
-       FROM Employee E
-       LEFT JOIN Department D ON D.Department_ID = E.Department_ID
-       LEFT JOIN Employee S ON S.Employee_ID = E.Supervisor_ID
-       WHERE (? IS NULL OR D.Department_Name = ?)
-       ORDER BY D.Department_Name, E.Last_Name, E.First_Name`,
-      [department, department],
-    );
+    const employeeRows = [];
 
     const [exhibitionRevenueRows] = await pool.query(
       `SELECT COALESCE(EX.Exhibition_Name, 'General Admission') AS Exhibition_Name,
@@ -247,28 +361,7 @@ function registerReportsRoutes(app, { pool }) {
       [attendanceStart, attendanceStart, attendanceEnd, attendanceEnd],
     );
 
-    const [scheduleRows] = await pool.query(
-      `SELECT S.Shift_Date,
-              S.Start_Time,
-              S.End_Time,
-              S.Duty,
-              CONCAT(E.First_Name, ' ', E.Last_Name) AS Employee_Name,
-              D.Department_Name,
-              EX.Exhibition_Name
-       FROM Schedule S
-       JOIN Employee E ON E.Employee_ID = S.Employee_ID
-       LEFT JOIN Department D ON D.Department_ID = E.Department_ID
-       JOIN Exhibition EX ON EX.Exhibition_ID = S.Exhibition_ID
-       WHERE (? IS NULL OR S.Shift_Date >= ?)
-         AND (? IS NULL OR S.Shift_Date <= ?)
-         AND (? IS NULL OR D.Department_Name = ?)
-         AND (? IS NULL OR S.Duty = ?)
-       ORDER BY S.Shift_Date DESC, S.Start_Time, E.Last_Name, E.First_Name`,
-      [scheduleStart, scheduleStart, scheduleEnd, scheduleEnd, scheduleDepartment, scheduleDepartment, scheduleDuty, scheduleDuty],
-    );
-
-    const consolidatedStart = req.query.consolidated_start?.trim() || null;
-    const consolidatedEnd = req.query.consolidated_end?.trim() || null;
+    const scheduleRows = [];
 
     const [consolidatedRows] = await pool.query(
       `SELECT * FROM Consolidated_Revenue 
@@ -401,6 +494,55 @@ function registerReportsRoutes(app, { pool }) {
     }
 
     const grandTotal = financialTransactionRows.reduce((sum, r) => sum + Number(r.Amount), 0);
+    const consolidatedChart = renderStackedChart({
+      title: "Revenue Mix",
+      items: [
+        { label: "Tickets", value: consolidatedRows.reduce((sum, row) => sum + numberValue(row.Ticket_Revenue), 0) },
+        { label: "Gift Shop", value: consolidatedRows.reduce((sum, row) => sum + numberValue(row.Gift_Shop_Revenue), 0) },
+        { label: "Cafe", value: consolidatedRows.reduce((sum, row) => sum + numberValue(row.Cafe_Revenue), 0) },
+      ],
+    });
+    const ticketSalesChart = renderBarChart({
+      title: "Ticket Revenue by Type",
+      rows: ticketSalesRows,
+      labelKey: "Ticket_Type",
+      valueKey: "Revenue",
+      valuePrefix: "$",
+    });
+    const revenueChart = renderBarChart({
+      title: "Exhibition Revenue",
+      rows: exhibitionRevenueRows,
+      labelKey: "Exhibition_Name",
+      valueKey: "Revenue",
+      valuePrefix: "$",
+    });
+    const giftChart = renderBarChart({
+      title: "Gift Shop Revenue",
+      rows: giftSalesRows,
+      labelKey: "Name_of_Item",
+      valueKey: "Revenue",
+      valuePrefix: "$",
+    });
+    const cafeChart = renderBarChart({
+      title: "Cafe Revenue",
+      rows: cafeSalesRows,
+      labelKey: "Food_Name",
+      valueKey: "Revenue",
+      valuePrefix: "$",
+    });
+    const membershipChart = renderBarChart({
+      title: "Membership Status",
+      rows: [
+        { label: "Active", value: membershipSummary.Active_Members || 0 },
+        { label: "Expired", value: membershipSummary.Expired_Members || 0 },
+        { label: "Cancelled", value: membershipSummary.Cancelled_Members || 0 },
+        { label: "New in Range", value: membershipSummary.New_In_Range || 0 },
+      ],
+      labelKey: "label",
+      valueKey: "value",
+    });
+    const eventAttendanceChart = renderCapacityChart("Event Capacity", eventAttendanceRows, "event_Name", "Registered_Count", "Max_capacity");
+    const tourAttendanceChart = renderCapacityChart("Tour Capacity", tourAttendanceRows, "Tour_Name", "Registered_Count", "Max_Capacity");
 
     const employeeHtml = employeePagination.items.map((row) => `
       <tr>
@@ -506,29 +648,25 @@ function registerReportsRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <p class="eyebrow">Supervisor Reports</p>
         <h1>Museum Reports</h1>
-        <p class="dashboard-note">These report views satisfy the rubric requirement for filtered reports with selectable criteria.</p>
+        ${renderFlash(req)}
       </section>
       <section class="card narrow">
         <div class="tab-bar" data-tab-group="reports">
           <button class="tab-button" type="button" data-tab-target="consolidated-report-tab">Financial Summary</button>
           <button class="tab-button" type="button" data-tab-target="ticket-sales-report-tab">Ticket Sales</button>
-          <button class="tab-button" type="button" data-tab-target="employee-report-tab">Employees</button>
           <button class="tab-button" type="button" data-tab-target="revenue-report-tab">Exhibition Revenue</button>
           <button class="tab-button" type="button" data-tab-target="gift-report-tab">Gift Shop</button>
           <button class="tab-button" type="button" data-tab-target="cafe-report-tab">Café</button>
           <button class="tab-button" type="button" data-tab-target="membership-report-tab">Membership</button>
           <button class="tab-button" type="button" data-tab-target="event-attendance-report-tab">Events</button>
           <button class="tab-button" type="button" data-tab-target="tour-attendance-report-tab">Tours</button>
-          <button class="tab-button" type="button" data-tab-target="schedule-report-tab">Schedule</button>
         </div>
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="consolidated-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="consolidated-report-tab">
         <div id="consolidated-report"></div>
         <h2>Consolidated Financial Summary</h2>
-        <p class="dashboard-note">Aggregated daily revenue from all departments (Tickets, Gift Shop, Café).</p>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Start Date
             <input type="date" name="consolidated_start" value="${escapeHtml(consolidatedStart ?? '')}">
           </label>
@@ -537,6 +675,12 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
+        ${renderReportKpis([
+          { label: "Grand Total", value: `$${grandTotal.toFixed(2)}` },
+          { label: "Daily Rows", value: String(consolidatedRows.length) },
+          { label: "Transactions", value: String(financialTransactionRows.length) },
+        ])}
+        ${consolidatedChart}
         <table>
           <thead>
             <tr>
@@ -552,7 +696,7 @@ function registerReportsRoutes(app, { pool }) {
         ${renderPager(req, "consolidated_page", consolidatedPagination, "consolidated-report")}
 
         <h3 style="margin-top:2rem;">Transaction Ledger</h3>
-        <p class="dashboard-note">Every individual transaction contributing to the totals above. Subtotals are shown after each day's entries. Grand total across all dates: <strong>$${grandTotal.toFixed(2)}</strong></p>
+        <p class="dashboard-note">Grand total across all dates: <strong>$${grandTotal.toFixed(2)}</strong></p>
         <table>
           <thead>
             <tr>
@@ -567,10 +711,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "financial_tx_page", financialTxPagination, "consolidated-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="ticket-sales-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="ticket-sales-report-tab">
         <div id="ticket-sales-report"></div>
         <h2>Ticket Sales by Date Range</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Purchase Start
             <input type="date" name="sales_start" value="${escapeHtml(salesStart ?? '')}">
           </label>
@@ -594,7 +738,12 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
-        <p class="dashboard-note">Orders: ${ticketSalesSummary.Total_Orders || 0} | Tickets sold: ${ticketSalesSummary.Total_Tickets || 0} | Revenue: $${Number(ticketSalesSummary.Total_Revenue || 0).toFixed(2)}</p>
+        ${renderReportKpis([
+          { label: "Orders", value: String(ticketSalesSummary.Total_Orders || 0) },
+          { label: "Tickets Sold", value: String(ticketSalesSummary.Total_Tickets || 0) },
+          { label: "Revenue", value: `$${Number(ticketSalesSummary.Total_Revenue || 0).toFixed(2)}` },
+        ])}
+        ${ticketSalesChart}
         <table>
           <thead>
             <tr>
@@ -610,35 +759,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "ticket_sales_page", ticketSalesPagination, "ticket-sales-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="employee-report-tab">
-        <div id="employee-report"></div>
-        <h2>Employees by Department</h2>
-        <form method="get" action="/reports" class="form-grid">
-          <label>Department
-            <select name="department">
-              <option value="">All Departments</option>
-              ${deptOptions}
-            </select>
-          </label>
-          <button class="button" type="submit">Run Report</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Position</th>
-              <th>Department</th>
-              <th>Supervisor</th>
-            </tr>
-          </thead>
-          <tbody>${employeeHtml || '<tr><td colspan="4">No employees matched the selected department.</td></tr>'}</tbody>
-        </table>
-        ${renderPager(req, "employee_page", employeePagination, "employee-report")}
-      </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="revenue-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="revenue-report-tab">
         <div id="revenue-report"></div>
         <h2>Revenue by Exhibition</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Visit Start
             <input type="date" name="revenue_start" value="${escapeHtml(revenueStart ?? '')}">
           </label>
@@ -647,6 +771,7 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
+        ${revenueChart}
         <table>
           <thead>
             <tr>
@@ -659,10 +784,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "revenue_page", revenuePagination, "revenue-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="gift-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="gift-report-tab">
         <div id="gift-report"></div>
         <h2>Gift Shop Sales Summary</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Sale Start
             <input type="date" name="gift_start" value="${escapeHtml(giftStart ?? '')}">
           </label>
@@ -671,7 +796,12 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
-        <p class="dashboard-note">Sales: ${giftSummary.Total_Sales || 0} | Items sold: ${giftSummary.Items_Sold || 0} | Revenue: $${Number(giftSummary.Total_Revenue || 0).toFixed(2)}</p>
+        ${renderReportKpis([
+          { label: "Sales", value: String(giftSummary.Total_Sales || 0) },
+          { label: "Items Sold", value: String(giftSummary.Items_Sold || 0) },
+          { label: "Revenue", value: `$${Number(giftSummary.Total_Revenue || 0).toFixed(2)}` },
+        ])}
+        ${giftChart}
         <table>
           <thead>
             <tr>
@@ -684,10 +814,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "gift_page", giftPagination, "gift-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="cafe-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="cafe-report-tab">
         <div id="cafe-report"></div>
         <h2>Cafe Sales Summary</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Sale Start
             <input type="date" name="cafe_start" value="${escapeHtml(cafeStart ?? '')}">
           </label>
@@ -696,7 +826,12 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
-        <p class="dashboard-note">Sales: ${cafeSummary.Total_Sales || 0} | Items sold: ${cafeSummary.Items_Sold || 0} | Revenue: $${Number(cafeSummary.Total_Revenue || 0).toFixed(2)}</p>
+        ${renderReportKpis([
+          { label: "Sales", value: String(cafeSummary.Total_Sales || 0) },
+          { label: "Items Sold", value: String(cafeSummary.Items_Sold || 0) },
+          { label: "Revenue", value: `$${Number(cafeSummary.Total_Revenue || 0).toFixed(2)}` },
+        ])}
+        ${cafeChart}
         <table>
           <thead>
             <tr>
@@ -709,10 +844,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "cafe_page", cafePagination, "cafe-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="membership-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="membership-report-tab">
         <div id="membership-report"></div>
         <h2>Membership Status Report</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Joined Start
             <input type="date" name="membership_start" value="${escapeHtml(membershipStart ?? '')}">
           </label>
@@ -732,7 +867,12 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
-        <p class="dashboard-note">Total: ${membershipSummary.Total_Members || 0} | Active: ${membershipSummary.Active_Members || 0} | Expired: ${membershipSummary.Expired_Members || 0} | Cancelled: ${membershipSummary.Cancelled_Members || 0} | New in range: ${membershipSummary.New_In_Range || 0}</p>
+        ${renderReportKpis([
+          { label: "Total", value: String(membershipSummary.Total_Members || 0) },
+          { label: "Active", value: String(membershipSummary.Active_Members || 0) },
+          { label: "New in Range", value: String(membershipSummary.New_In_Range || 0) },
+        ])}
+        ${membershipChart}
         <table>
           <thead>
             <tr>
@@ -748,10 +888,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "membership_page", membershipPagination, "membership-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="event-attendance-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="event-attendance-report-tab">
         <div id="event-attendance-report"></div>
         <h2>Event Attendance</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Start Date
             <input type="date" name="attendance_start" value="${escapeHtml(attendanceStart ?? '')}">
           </label>
@@ -760,6 +900,7 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
+        ${eventAttendanceChart}
         <table>
           <thead>
             <tr>
@@ -774,10 +915,10 @@ function registerReportsRoutes(app, { pool }) {
         </table>
         ${renderPager(req, "event_attendance_page", eventAttendancePagination, "event-attendance-report")}
       </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="tour-attendance-report-tab">
+      <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="tour-attendance-report-tab">
         <div id="tour-attendance-report"></div>
         <h2>Tour Attendance</h2>
-        <form method="get" action="/reports" class="form-grid">
+        <form method="get" action="/reports" class="form-grid" data-date-range-form>
           <label>Start Date
             <input type="date" name="attendance_start" value="${escapeHtml(attendanceStart ?? '')}">
           </label>
@@ -786,6 +927,7 @@ function registerReportsRoutes(app, { pool }) {
           </label>
           <button class="button" type="submit">Run Report</button>
         </form>
+        ${tourAttendanceChart}
         <table>
           <thead>
             <tr>
@@ -799,46 +941,6 @@ function registerReportsRoutes(app, { pool }) {
           <tbody>${tourAttendanceHtml || '<tr><td colspan="5">No tours matched the selected dates.</td></tr>'}</tbody>
         </table>
         ${renderPager(req, "tour_attendance_page", tourAttendancePagination, "tour-attendance-report")}
-      </section>
-      <section class="card narrow tab-panel" data-tab-group="reports" data-tab-panel="schedule-report-tab">
-        <div id="schedule-report"></div>
-        <h2>Employee Schedule Report</h2>
-        <form method="get" action="/reports" class="form-grid">
-          <label>Shift Start
-            <input type="date" name="schedule_start" value="${escapeHtml(scheduleStart ?? '')}">
-          </label>
-          <label>Shift End
-            <input type="date" name="schedule_end" value="${escapeHtml(scheduleEnd ?? '')}">
-          </label>
-          <label>Department
-            <select name="schedule_department">
-              <option value="">All Departments</option>
-              ${scheduleDeptOptions}
-            </select>
-          </label>
-          <label>Duty
-            <select name="schedule_duty">
-              <option value="">All Duties</option>
-              ${dutyOptions}
-            </select>
-          </label>
-          <button class="button" type="submit">Run Report</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Employee</th>
-              <th>Department</th>
-              <th>Exhibition</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Duty</th>
-            </tr>
-          </thead>
-          <tbody>${scheduleHtml || '<tr><td colspan="7">No schedules matched the selected dates.</td></tr>'}</tbody>
-        </table>
-        ${renderPager(req, "schedule_page", schedulePagination, "schedule-report")}
       </section>
     `,
     }));

@@ -24,14 +24,19 @@ function renderExhibitionCards(exhibitions) {
   return `
     <div class="feature-grid">
       ${exhibitions.map((exhibition) => {
-        const asset = getExhibitionAsset(exhibition.Exhibition_Name);
+        const asset = getExhibitionAsset(exhibition.Exhibition_Name, exhibition.Image_URL);
+        const name = String(exhibition.Exhibition_Name || "");
+        const description = /spring/i.test(name)
+          ? "A seasonal presentation of sculpture, painting, and garden-facing works."
+          : /summer/i.test(name)
+          ? "A bright summer selection of contemporary color, scale, and public programs."
+          : "Current exhibition access may be added to admission.";
         return `
           <article class="feature-card">
             <div class="feature-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
             <div class="feature-card__body">
-              <p class="eyebrow">Exhibition</p>
               <h2>${escapeHtml(exhibition.Exhibition_Name)}</h2>
-              <p>Pair your admission with this exhibition while planning your museum visit.</p>
+              <p>${escapeHtml(description)}</p>
             </div>
           </article>
         `;
@@ -40,10 +45,202 @@ function renderExhibitionCards(exhibitions) {
   `;
 }
 
+const MEMBER_DISCOUNT = 0.2;
+
+const TICKET_TYPES = [
+  {
+    value: "General Admission",
+    title: "General Admission",
+    price: 20,
+    description: "Main campus galleries and permanent collection access.",
+    benefits: ["Same-day museum entry", "Optional exhibition pairing"],
+  },
+  {
+    value: "Senior",
+    title: "Senior 65+",
+    price: 15,
+    description: "Reduced admission for visitors 65 and older.",
+    benefits: ["Permanent collection access", "Optional exhibition pairing"],
+  },
+  {
+    value: "Child",
+    title: "Child Under 12",
+    price: 10,
+    description: "Youth admission for family visits.",
+    benefits: ["Permanent collection access", "Family-friendly galleries"],
+  },
+];
+
+function getTicketPrice(ticketType, hasDiscount) {
+  const ticket = TICKET_TYPES.find((item) => item.value === ticketType);
+  if (!ticket) {
+    return null;
+  }
+
+  return hasDiscount ? ticket.price * (1 - MEMBER_DISCOUNT) : ticket.price;
+}
+
+function renderTicketTypeCards(hasDiscount) {
+  return `
+    <section class="ticket-card-grid" id="ticket-options">
+      ${TICKET_TYPES.map((ticket, index) => {
+        const finalPrice = getTicketPrice(ticket.value, hasDiscount);
+        return `
+          <article class="ticket-option-card ${index === TICKET_TYPES.length - 1 ? "ticket-option-card--featured" : ""}">
+            <div class="ticket-option-card__header">
+              <h2>${escapeHtml(ticket.title)}</h2>
+              <strong>$${finalPrice.toFixed(2)}</strong>
+            </div>
+            ${hasDiscount ? `<p class="ticket-option-card__discount">$${ticket.price.toFixed(2)} standard price</p>` : ""}
+            ${ticket.description ? `<p>${escapeHtml(ticket.description)}</p>` : ""}
+            ${hasDiscount ? "<p>Member pricing applied.</p>" : ""}
+            <ul>
+              ${ticket.benefits.map((benefit) => `<li>${escapeHtml(benefit)}</li>`).join("")}
+            </ul>
+            <a class="button" href="/purchase-ticket/details?ticket_type=${encodeURIComponent(ticket.value)}">Select Ticket</a>
+          </article>
+        `;
+      }).join("")}
+    </section>
+  `;
+}
+
+function renderTicketSteps(activeStep = 1) {
+  const steps = ["Choose ticket", "Visit details", "Account", "Review and pay"];
+  return `
+    <ol class="process-steps" aria-label="Ticket purchase steps">
+      ${steps.map((step, index) => `
+        <li class="${index + 1 === activeStep ? "is-active" : index + 1 < activeStep ? "is-complete" : ""}">
+          <span>${index + 1}</span>
+          <strong>${escapeHtml(step)}</strong>
+        </li>
+      `).join("")}
+    </ol>
+  `;
+}
+
 function registerPurchaseTicketRoutes(app, { pool }) {
+  app.get("/purchase-membership", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    let membershipInfo = null;
+    if (req.session.user.membershipId) {
+      const [[row]] = await pool.query(
+        "SELECT Membership_ID, Status, Date_Joined, Date_Exited FROM Membership WHERE Membership_ID = ?",
+        [req.session.user.membershipId],
+      );
+      membershipInfo = row || null;
+    }
+
+    res.send(renderPage({
+      title: "Purchase Membership",
+      user: req.session.user,
+      currentPath: req.path,
+      hero: {
+        eyebrow: "Membership",
+        title: "Membership",
+        description: "Member admission, tours, and programs.",
+        imagePath: "/images/museum2.jpg",
+        alt: "Museum membership gallery.",
+        actions: [
+          { href: "#membership-options", label: membershipInfo ? "Manage Membership" : "Purchase Membership" },
+          { href: "/queries?view=artwork-status#query-tabs", label: "Search Collection", secondary: true },
+        ],
+      },
+      content: `
+        ${renderFlash(req)}
+        <section class="membership-pricing" id="membership-options">
+          <article class="membership-plan membership-plan--standard">
+            <div class="membership-plan__header">
+              <h2>Annual Membership</h2>
+              <strong>$49<span>/ year</span></strong>
+            </div>
+            <ul>
+              <li>20% admission discount</li>
+              <li>Guided tour registration</li>
+              <li>Event registration access</li>
+              <li>Collection visit planning</li>
+            </ul>
+            ${membershipInfo?.Status === "Active"
+              ? '<a class="button button-secondary" href="/dashboard">Membership Active</a>'
+              : `<form method="post" action="/purchase-membership">
+                  <button class="button button-success" type="submit">${membershipInfo ? "Restore Membership" : "Purchase Membership"}</button>
+                </form>`}
+          </article>
+          <article class="membership-plan membership-plan--supporter">
+            <div class="membership-plan__header">
+              <h2>Patron Membership</h2>
+              <strong>$149<span>/ year</span></strong>
+            </div>
+            <ul>
+              <li>Member admission discount</li>
+              <li>Priority program registration</li>
+              <li>Exhibition previews</li>
+              <li>Support for collection care</li>
+            </ul>
+            <form method="post" action="/purchase-membership">
+              <button class="button" type="submit" ${membershipInfo?.Status === "Active" ? "disabled" : ""}>Join as Patron</button>
+            </form>
+          </article>
+        </section>
+      `,
+    }));
+  }));
+
+  app.post("/purchase-membership", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    const user = req.session.user;
+    const [firstName, ...lastParts] = String(user.name || "").split(" ");
+    const lastName = lastParts.join(" ") || "Member";
+
+    if (user.membershipId) {
+      await pool.query(
+        `UPDATE Membership
+         SET Status = 'Active',
+             Date_Joined = COALESCE(Date_Joined, CURDATE()),
+             Date_Exited = DATE_ADD(CURDATE(), INTERVAL 1 YEAR),
+             Updated_By = ?
+         WHERE Membership_ID = ?`,
+        [user.email, user.membershipId],
+      );
+      setFlash(req, "Membership activated.");
+      return res.redirect("/dashboard");
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [membershipResult] = await connection.query(
+        `INSERT INTO Membership (First_Name, Last_Name, Email, Date_Joined, Updated_By)
+         VALUES (?, ?, ?, CURDATE(), ?)`,
+        [firstName || "Museum", lastName, user.email, user.email],
+      );
+      await connection.query(
+        "UPDATE users SET membership_id = ? WHERE id = ?",
+        [membershipResult.insertId, user.id],
+      );
+      await connection.commit();
+      req.session.user.membershipId = membershipResult.insertId;
+      setFlash(req, "Membership purchased. Member pricing is active.");
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+    res.redirect("/dashboard");
+  }));
+
   app.get("/purchase-ticket", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    const [exhibitionImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Exhibition'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasExhibitionImageColumn = exhibitionImageColumns.length > 0;
     const [exhibitions] = await pool.query(
-      "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name",
+      `SELECT Exhibition_ID, Exhibition_Name, ${hasExhibitionImageColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Exhibition ORDER BY Exhibition_Name`,
     );
     let membershipId = req.session.user.membershipId ?? null;
     const discount = 0.2;
@@ -69,9 +266,15 @@ function registerPurchaseTicketRoutes(app, { pool }) {
            LIMIT 5`,
           [membershipId],
         )
-      : [[]];
+      : await pool.query(
+          `SELECT Ticket_ID, Purchase_Date, Visit_Date, Payment_method
+           FROM Ticket
+           WHERE Email = ?
+           ORDER BY Purchase_Date DESC, Ticket_ID DESC
+           LIMIT 5`,
+          [req.session.user.email],
+        );
 
-    const today = new Date().toISOString().split("T")[0];
     const membershipStatus = membershipInfo?.Status || "No Active Membership";
     const membershipTone = membershipStatus === "Active" ? "success" : membershipStatus === "Expired" ? "warning" : "danger";
     const expiryDate = membershipInfo?.Date_Exited ? formatDisplayDate(membershipInfo.Date_Exited) : "N/A";
@@ -87,60 +290,159 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     `).join("");
 
     res.send(renderPage({
-      title: "Plan Your Visit",
+      title: "Tickets",
       user: req.session.user,
       currentPath: req.path,
       hero: {
-        eyebrow: "Plan Your Visit",
-        title: "Admission tickets and member access",
-        description: "Buy museum admission, connect a current exhibition to your visit, and review membership status without sorting through technical forms.",
-        imagePath: "/images/summer-showcase.jpg",
-        alt: "Museum visitors walking through an exhibition.",
+        eyebrow: "Tickets",
+        title: "Tickets",
+        description: "",
+        imagePath: "/images/admission.jpg",
+        alt: "Museum admissions desk.",
         actions: [
-          { href: "#ticket-form", label: "Buy Tickets" },
+          { href: "#ticket-options", label: "Buy Tickets" },
           { href: "/tour-register", label: "Browse Tours", secondary: true },
         ],
       },
       alertContent: membershipId
         ? { type: "success", title: "Member discount ready", message: "Your active membership applies a 20% discount automatically." }
-        : { type: "warning", title: "Membership attention", message: "Your membership is not active. Renew to unlock member pricing for admission." },
+        : {
+            type: "warning",
+            title: membershipInfo?.Status === "Cancelled" ? "Membership cancelled" : "Membership inactive",
+            message: membershipInfo?.Status === "Cancelled"
+              ? "Restore your membership to use member pricing."
+              : "Renew to unlock member pricing for admission.",
+            actions: [{ href: "/purchase-membership", label: membershipInfo ? "Open Membership" : "Join" }],
+          },
       content: `
-        <section class="card">
+        <section class="flow-shell">
+          ${renderTicketSteps(1)}
+          <div class="applied-state applied-state--${membershipId ? "success" : "neutral"}">
+            <div>
+              <p class="eyebrow">${membershipId ? "Member Pricing Applied" : "Guest Pricing"}</p>
+              <strong>${membershipId ? "20% admission discount is active." : "Sign in with active membership to apply discounted admission."}</strong>
+            </div>
+            <span>${membershipId ? `Valid through ${escapeHtml(expiryDate)}` : "Standard admission prices shown"}</span>
+          </div>
+        </section>
+        ${membershipInfo && membershipInfo.Status !== "Active" && membershipInfo.Status !== "Cancelled" ? `
+          <section class="card quiet-card">
+            <h2>Membership Renewal</h2>
+            <form method="post" action="/member-renew-membership">
+              <button class="button" type="submit">Renew Membership</button>
+            </form>
+          </section>
+        ` : ""}
+        ${membershipInfo?.Status === "Cancelled" ? `
+          <section class="card quiet-card">
+            <h2>Your Membership</h2>
+            <p class="section-lead">Membership is cancelled. Restore it here for member pricing, tours, and events.</p>
+            <a class="button" href="/purchase-membership">Open Membership</a>
+          </section>
+        ` : ""}
+        <section class="card" id="ticket-form">
           <div class="section-header">
             <div>
-              <p class="eyebrow">Membership</p>
-              <h2>Visit planning summary</h2>
+              <p class="eyebrow">Step 1</p>
+              <h2>Choose ticket type</h2>
             </div>
+            <span class="status-badge status-badge--${membershipId ? "success" : "neutral"}">${membershipId ? "Member pricing" : "Guest pricing"}</span>
           </div>
+          ${renderFlash(req)}
+          ${renderTicketTypeCards(Boolean(membershipId))}
+        </section>
+        <section class="supporting-section">
+          <h2>Exhibition add-ons</h2>
+          ${renderExhibitionCards(exhibitions)}
+        </section>
+        <section class="card quiet-card">
+          <h2>Account activity</h2>
           <div class="summary-grid">
-            ${renderSummaryCard("Status", escapeHtml(membershipStatus), membershipTone)}
+            ${renderSummaryCard("Membership", escapeHtml(membershipStatus), membershipTone)}
             ${renderSummaryCard("Member Since", escapeHtml(joinedDate), "neutral")}
             ${renderSummaryCard("Valid Through", escapeHtml(expiryDate), membershipId ? "success" : "warning")}
           </div>
-          ${membershipInfo && (membershipInfo.Status === "Expired" || membershipInfo.Status === "Active") ? `
-            <form method="post" action="/member-renew-membership">
-              <button class="button" type="submit">${membershipInfo.Status === "Expired" ? "Renew Membership" : "Renew Early"}</button>
-            </form>
-          ` : ""}
+          <table>
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Purchased</th>
+                <th>Visit Date</th>
+                <th>Payment</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ticketRows || '<tr><td colspan="4">No ticket purchases found.</td></tr>'}
+            </tbody>
+          </table>
         </section>
-        <section class="card" id="ticket-form">
+      `,
+    }));
+  }));
+
+  app.get("/purchase-ticket/details", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    const ticketType = req.query.ticket_type;
+    const ticket = TICKET_TYPES.find((item) => item.value === ticketType);
+
+    if (!ticket) {
+      setFlash(req, "Choose a ticket type before entering visit details.");
+      return res.redirect("/purchase-ticket#ticket-options");
+    }
+
+    const [exhibitionImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Exhibition'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasExhibitionImageColumn = exhibitionImageColumns.length > 0;
+    const [exhibitions] = await pool.query(
+      `SELECT Exhibition_ID, Exhibition_Name, ${hasExhibitionImageColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Exhibition ORDER BY Exhibition_Name`,
+    );
+    const membershipId = req.session.user.membershipId ?? null;
+    let hasDiscount = false;
+
+    if (membershipId !== null) {
+      const [[member]] = await pool.query(
+        "SELECT Status FROM Membership WHERE Membership_ID = ?",
+        [membershipId],
+      );
+      hasDiscount = member?.Status === "Active";
+    }
+
+    const finalPrice = getTicketPrice(ticket.value, hasDiscount);
+    const today = new Date().toISOString().split("T")[0];
+
+    res.send(renderPage({
+      title: `${ticket.title} Details`,
+      user: req.session.user,
+      currentPath: "/purchase-ticket",
+      hero: {
+        eyebrow: "Ticket Details",
+        title: ticket.title,
+        description: `${hasDiscount ? "Member price" : "Ticket price"}: $${finalPrice.toFixed(2)}`,
+        imagePath: "/images/admission.jpg",
+        alt: "Museum admissions desk.",
+        actions: [
+          { href: "/purchase-ticket#ticket-options", label: "Change Ticket", secondary: true },
+        ],
+      },
+      content: `
+        <section class="flow-shell">
+          ${renderTicketSteps(2)}
+        </section>
+        <section class="card">
           <div class="content-rail">
             <div>
-              <p class="eyebrow">Admission</p>
-              <h2>Choose your ticket</h2>
-              <p class="section-lead">A single form handles admission, quantity, payment, and optional exhibition pairing.</p>
+              <p class="eyebrow">Step 2</p>
+              <h2>Visit details and add-ons</h2>
               ${renderFlash(req)}
               <form method="post" action="/purchase-ticket" class="form-grid">
+                <input type="hidden" name="ticket_type" value="${escapeHtml(ticket.value)}">
                 <label>Visit Date
                   <input type="date" name="visit_date" required min="${today}">
-                </label>
-                <label>Ticket Type
-                  <select name="ticket_type" required>
-                    <option value="">Select a ticket type</option>
-                    <option value="General Admission">General Admission ($20.00 -> $16.00)</option>
-                    <option value="Senior">Senior 65+ ($15.00 -> $12.00)</option>
-                    <option value="Child">Child under 12 ($10.00 -> $8.00)</option>
-                  </select>
                 </label>
                 <label>Quantity
                   <input type="number" name="quantity" min="1" value="1" required>
@@ -162,34 +464,17 @@ function registerPurchaseTicketRoutes(app, { pool }) {
               </form>
             </div>
             <aside class="content-rail__side">
-              <section class="card">
-                <p class="eyebrow">Member Pricing</p>
-                <h2>What this unlocks</h2>
-                <p class="section-lead">Active members receive 20% off museum admission and can continue into tours and event registration from the top navigation.</p>
-              </section>
-              <section class="card">
-                <p class="eyebrow">Recent Purchases</p>
-                <h2>Latest admission activity</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Ticket</th>
-                      <th>Purchased</th>
-                      <th>Visit Date</th>
-                      <th>Payment</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${ticketRows || '<tr><td colspan="4">No ticket purchases found for this member.</td></tr>'}
-                  </tbody>
-                </table>
+              <section class="ticket-summary-card">
+                <h2>${escapeHtml(ticket.title)}</h2>
+                <strong>$${finalPrice.toFixed(2)}</strong>
+                ${hasDiscount ? `<span class="status-badge status-badge--success">20% member discount</span>` : `<span class="status-badge status-badge--neutral">Guest pricing</span>`}
+                ${ticket.description ? `<p>${escapeHtml(ticket.description)}</p>` : ""}
               </section>
             </aside>
           </div>
         </section>
         <section class="card">
-          <p class="eyebrow">Featured Exhibitions</p>
-          <h2>Pair your admission with current museum experiences</h2>
+          <h2>Exhibitions</h2>
           ${renderExhibitionCards(exhibitions)}
         </section>
       `,
@@ -216,7 +501,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       return res.redirect("/purchase-ticket");
     }
 
-    const discount = 0.2;
+    let discount = 0;
     let basePrice;
     switch (ticketType) {
       case "General Admission": basePrice = 20.0; break;
@@ -227,25 +512,19 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         return res.redirect("/purchase-ticket");
     }
 
-    const finalPrice = basePrice * (1 - discount);
-
     const membershipId = req.session.user.membershipId ?? null;
-    if (membershipId === null) {
-      setFlash(req, "No membership found for your account. Please contact staff.");
-      return res.redirect("/purchase-ticket");
+    let activeMembershipId = null;
+    if (membershipId !== null) {
+      const [memberRows] = await pool.query(
+        "SELECT Membership_ID, Status FROM Membership WHERE Membership_ID = ?",
+        [membershipId],
+      );
+      if (memberRows.length > 0 && memberRows[0].Status === "Active") {
+        activeMembershipId = membershipId;
+        discount = 0.2;
+      }
     }
-    const [memberRows] = await pool.query(
-      "SELECT Membership_ID, Status FROM Membership WHERE Membership_ID = ?",
-      [membershipId],
-    );
-    if (memberRows.length === 0) {
-      setFlash(req, "Your membership record could not be found. Please contact staff.");
-      return res.redirect("/purchase-ticket");
-    }
-    if (memberRows[0].Status !== "Active") {
-      setFlash(req, `Your membership is ${memberRows[0].Status}. Please visit the admissions desk to renew before purchasing tickets.`);
-      return res.redirect("/purchase-ticket");
-    }
+    const finalPrice = basePrice * (1 - discount);
 
     const connection = await pool.getConnection();
 
@@ -253,9 +532,9 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       await connection.beginTransaction();
 
       const [ticketResult] = await connection.query(
-        `INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Payment_method, Membership_ID)
-         VALUES ('Online', CURRENT_DATE, ?, ?, ?)`,
-        [visitDate, paymentMethod, membershipId],
+        `INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Payment_method, Membership_ID, Email)
+         VALUES ('Online', CURRENT_DATE, ?, ?, ?, ?)`,
+        [visitDate, paymentMethod, activeMembershipId, req.session.user.email],
       );
 
       await connection.query(
@@ -280,8 +559,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     const membershipId = req.session.user.membershipId;
 
     if (!membershipId) {
-      setFlash(req, "No membership linked to your account. Please visit the admissions desk.");
-      return res.redirect("/purchase-ticket");
+      return res.redirect("/purchase-membership");
     }
 
     const [[member]] = await pool.query(
@@ -290,12 +568,12 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     );
 
     if (!member) {
-      setFlash(req, "Membership record not found. Please contact staff.");
+      setFlash(req, "Membership record not found. Contact museum staff for assistance.");
       return res.redirect("/purchase-ticket");
     }
 
     if (member.Status === "Cancelled") {
-      setFlash(req, "Your membership was cancelled. Please visit the admissions desk to create a new one.");
+      setFlash(req, "This membership was cancelled. Visit the admissions desk to create a new membership.");
       return res.redirect("/purchase-ticket");
     }
 
@@ -337,16 +615,14 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       currentPath: req.path,
       content: `
         <section class="card dashboard-card">
-          <p class="eyebrow">Admissions Register</p>
           <h1>Sell Tickets</h1>
-          <p class="dashboard-note">Use the admissions tabbed navigation for memberships and sales history. This page focuses only on the active ticket sale.</p>
           ${renderFlash(req)}
           <form method="post" action="/sell-ticket/add" class="form-grid">
             <label>Membership (optional)
-              <select name="membership_id">
+              <select name="membership_id" data-ticket-membership-select>
                 <option value="">No membership / guest purchase</option>
                 ${members.map((m) => `
-                  <option value="${m.Membership_ID}" ${req.session.membershipId == m.Membership_ID ? "selected" : ""}>
+                  <option value="${m.Membership_ID}" data-status="${escapeHtml(m.Status)}" ${req.session.membershipId == m.Membership_ID ? "selected" : ""}>
                     ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)} (${escapeHtml(m.Status)})
                   </option>
                 `).join("")}
@@ -363,10 +639,10 @@ function registerPurchaseTicketRoutes(app, { pool }) {
               </select>
             </label>
             <label>Ticket Type
-              <select name="ticket_type_id" required>
+              <select name="ticket_type_id" required data-ticket-type-select>
                 ${tickets.map((t) => `
-                  <option value="${t.Ticket_Type_ID}">
-                    ${t.Name} ($${t.Price})
+                  <option value="${t.Ticket_Type_ID}" data-name="${escapeHtml(t.Name)}" data-price="${t.Price}">
+                    ${t.Name} ($${discount > 0 ? (t.Price * 0.8).toFixed(2) : t.Price.toFixed(2)})
                   </option>
                 `).join("")}
               </select>
@@ -396,8 +672,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         <section class="card dashboard-card">
           <div class="section-header">
             <div>
-              <p class="eyebrow">Current Order</p>
-              <h2>Active sale</h2>
+              <h2>Current Order</h2>
             </div>
             <span class="status-badge status-badge--${discount > 0 ? "success" : "neutral"}">${discount > 0 ? "20% member discount" : "Guest pricing"}</span>
           </div>
@@ -438,13 +713,82 @@ function registerPurchaseTicketRoutes(app, { pool }) {
   }));
 
   app.get("/ticket-sales", requireLogin, allowRoles(["admissions", "employee", "supervisor"]), asyncHandler(async (req, res) => {
-    const [[todayTotals]] = await pool.query(`
-      SELECT COUNT(DISTINCT t.Ticket_ID) AS total_sales,
-             COALESCE(SUM(tl.Quantity * tl.Price_per_ticket), 0) AS total_revenue
+    const ticketType = String(req.query.ticket_type || "");
+    const purchaseType = String(req.query.purchase_type || "");
+    const sortKey = String(req.query.sort || "purchase_date");
+    const sortDirection = req.query.direction === "asc" ? "ASC" : "DESC";
+    const sortOptions = {
+      purchase_date: "t.Purchase_Date",
+      visit_date: "t.Visit_Date",
+      ticket_type: "tl.Ticket_Type",
+      purchase_type: "t.Purchase_type",
+      quantity: "tl.Quantity",
+      revenue: "Line_Total",
+    };
+    const orderBy = sortOptions[sortKey] || sortOptions.purchase_date;
+    const filters = ["DATE(t.Purchase_Date) = CURDATE()"];
+    const params = [];
+
+    if (ticketType) {
+      filters.push("tl.Ticket_Type = ?");
+      params.push(ticketType);
+    }
+
+    if (purchaseType) {
+      filters.push("t.Purchase_type = ?");
+      params.push(purchaseType);
+    }
+
+    const [ticketLines] = await pool.query(`
+      SELECT
+        t.Ticket_ID,
+        t.Purchase_Date,
+        t.Visit_Date,
+        t.Purchase_type,
+        t.Payment_method,
+        COALESCE(CONCAT(m.First_Name, ' ', m.Last_Name), t.Email, 'Guest') AS Buyer,
+        tl.Ticket_Type,
+        tl.Quantity,
+        tl.Price_per_ticket,
+        tl.Quantity * tl.Price_per_ticket AS Line_Total,
+        COALESCE(e.Exhibition_Name, 'General Admission') AS Exhibition_Name
       FROM Ticket t
       JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID
-      WHERE t.Purchase_Date = CURDATE()
-    `);
+      LEFT JOIN Membership m ON t.Membership_ID = m.Membership_ID
+      LEFT JOIN Exhibition e ON tl.Exhibition_ID = e.Exhibition_ID
+      WHERE ${filters.join(" AND ")}
+      ORDER BY ${orderBy} ${sortDirection}, t.Ticket_ID DESC
+    `, params);
+
+    const orderCount = new Set(ticketLines.map((line) => line.Ticket_ID)).size;
+    const ticketsSold = ticketLines.reduce((sum, line) => sum + Number(line.Quantity || 0), 0);
+    const totalRevenue = ticketLines.reduce((sum, line) => sum + Number(line.Line_Total || 0), 0);
+    const averageOrder = orderCount ? totalRevenue / orderCount : 0;
+    const ticketTypeMix = ticketLines.reduce((acc, line) => {
+      const key = line.Ticket_Type || "Unknown";
+      const current = acc.get(key) || { quantity: 0, revenue: 0 };
+      current.quantity += Number(line.Quantity || 0);
+      current.revenue += Number(line.Line_Total || 0);
+      acc.set(key, current);
+      return acc;
+    }, new Map());
+
+    const purchaseTypes = ["Online", "In-Person", "Walk-up"];
+    const queryFor = (overrides = {}) => {
+      const params = new URLSearchParams();
+      if (ticketType) params.set("ticket_type", ticketType);
+      if (purchaseType) params.set("purchase_type", purchaseType);
+      Object.entries(overrides).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+        else params.delete(key);
+      });
+      return `/ticket-sales${params.toString() ? `?${params.toString()}` : ""}`;
+    };
+    const sortLink = (label, key) => {
+      const nextDirection = sortKey === key && sortDirection === "DESC" ? "asc" : "desc";
+      const marker = sortKey === key ? (sortDirection === "DESC" ? " ↓" : " ↑") : "";
+      return `<a href="${queryFor({ sort: key, direction: nextDirection })}">${label}${marker}</a>`;
+    };
 
     res.send(renderPage({
       title: "Ticket Sales",
@@ -452,12 +796,79 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       currentPath: req.path,
       content: `
         <section class="card dashboard-card">
-          <p class="eyebrow">Admissions Reporting</p>
-          <h1>Today's Ticket Sales</h1>
+          <h1>Ticket Sales</h1>
+          <form method="get" action="/ticket-sales" class="ticket-sales-filters">
+            <label>Ticket Type
+              <select name="ticket_type">
+                <option value="">All ticket types</option>
+                ${TICKET_TYPES.map((ticket) => `<option value="${escapeHtml(ticket.value)}" ${ticketType === ticket.value ? "selected" : ""}>${escapeHtml(ticket.title)}</option>`).join("")}
+              </select>
+            </label>
+            <label>Purchase Type
+              <select name="purchase_type">
+                <option value="">All purchase types</option>
+                ${purchaseTypes.map((type) => `<option value="${escapeHtml(type)}" ${purchaseType === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
+              </select>
+            </label>
+            <input type="hidden" name="sort" value="${escapeHtml(sortKey)}">
+            <input type="hidden" name="direction" value="${sortDirection.toLowerCase()}">
+            <button class="button" type="submit">Apply Filters</button>
+            <a class="button button-secondary" href="/ticket-sales">Reset</a>
+          </form>
           <div class="summary-grid">
-            ${renderSummaryCard("Tickets Sold", String(todayTotals.total_sales), "success")}
-            ${renderSummaryCard("Revenue", `$${Number(todayTotals.total_revenue).toFixed(2)}`, "neutral")}
+            ${renderSummaryCard("Orders", String(orderCount), "neutral")}
+            ${renderSummaryCard("Tickets Sold", String(ticketsSold), "success")}
+            ${renderSummaryCard("Revenue", `$${totalRevenue.toFixed(2)}`, "neutral")}
+            ${renderSummaryCard("Average Order", `$${averageOrder.toFixed(2)}`, "neutral")}
           </div>
+          <div class="ticket-sales-mix" aria-label="Ticket type sales mix">
+            ${Array.from(ticketTypeMix.entries()).map(([type, totals]) => `
+              <article>
+                <p class="eyebrow">${escapeHtml(type)}</p>
+                <strong>${totals.quantity}</strong>
+                <span>$${totals.revenue.toFixed(2)}</span>
+              </article>
+            `).join("") || '<div class="empty-state"><p>No ticket lines match the current filters.</p></div>'}
+          </div>
+        </section>
+        <section class="card dashboard-card">
+          <div class="section-header">
+            <div>
+              <h2>Ticket Lines</h2>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>${sortLink("Order", "purchase_date")}</th>
+                <th>${sortLink("Visit", "visit_date")}</th>
+                <th>Buyer</th>
+                <th>${sortLink("Ticket Type", "ticket_type")}</th>
+                <th>${sortLink("Purchase Type", "purchase_type")}</th>
+                <th>Payment</th>
+                <th>Exhibition</th>
+                <th>${sortLink("Qty", "quantity")}</th>
+                <th>Unit</th>
+                <th>${sortLink("Total", "revenue")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ticketLines.map((line) => `
+                <tr>
+                  <td>#${line.Ticket_ID}<br><span class="muted">${formatDisplayDate(line.Purchase_Date)}</span></td>
+                  <td>${formatDisplayDate(line.Visit_Date)}</td>
+                  <td>${escapeHtml(line.Buyer || "Guest")}</td>
+                  <td><span class="status-badge status-badge--neutral">${escapeHtml(line.Ticket_Type || "N/A")}</span></td>
+                  <td>${escapeHtml(line.Purchase_type || "N/A")}</td>
+                  <td>${escapeHtml(line.Payment_method || "N/A")}</td>
+                  <td>${escapeHtml(line.Exhibition_Name || "General Admission")}</td>
+                  <td>${Number(line.Quantity || 0)}</td>
+                  <td>$${Number(line.Price_per_ticket || 0).toFixed(2)}</td>
+                  <td>$${Number(line.Line_Total || 0).toFixed(2)}</td>
+                </tr>
+              `).join("") || '<tr><td colspan="10">No ticket sales match the current filters.</td></tr>'}
+            </tbody>
+          </table>
         </section>
       `
     }));

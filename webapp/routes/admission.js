@@ -81,7 +81,7 @@ function registerAdmissionRoutes(app, { pool }) {
           <label>Email
             <input type="email" name="email" value="${editTicket ? escapeHtml(editTicket.Email || "") : ""}">
           </label>
-          <button class="button" type="submit">${editTicket ? "Update Ticket" : "Add Ticket"}</button>
+          <button class="button" type="submit">${editTicket ? "Save Ticket" : "Create Ticket"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -120,7 +120,7 @@ function registerAdmissionRoutes(app, { pool }) {
     } = req.body;
 
     if (!phone && !email) {
-      setFlash(req, "Please enter either Phone or Email.");
+      setFlash(req, "Enter either a phone number or an email address.");
       return res.redirect("/add-ticket");
     }
 
@@ -131,14 +131,14 @@ function registerAdmissionRoutes(app, { pool }) {
          WHERE Ticket_ID = ?`,
         [type, purchaseDate, visitDate, email || null, phone || null, ticketId],
       );
-      setFlash(req, "Ticket updated successfully.");
+      setFlash(req, "Ticket record updated.");
     } else {
       await pool.query(
         `INSERT INTO Ticket (Purchase_type, Purchase_Date, Visit_Date, Email, Phone_Number)
          VALUES (?, ?, ?, ?, ?)`,
         [type, purchaseDate, visitDate, email || null, phone || null],
       );
-      setFlash(req, "Ticket added successfully.");
+      setFlash(req, "Ticket record created.");
     }
 
     res.redirect("/add-ticket");
@@ -148,7 +148,7 @@ function registerAdmissionRoutes(app, { pool }) {
     const idToDelete = req.body.ticket_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No ticket ID provided.");
+      setFlash(req, "Select a ticket record before deleting.");
       return res.redirect("/add-ticket");
     }
 
@@ -236,7 +236,7 @@ function registerAdmissionRoutes(app, { pool }) {
               ${exhibitions.map((ex) => `<option value="${ex.Exhibition_ID}" ${editLine && editLine.Exhibition_ID === ex.Exhibition_ID ? "selected" : ""}>${escapeHtml(ex.Exhibition_Name)}</option>`).join("")}
             </select>
           </label>
-          <button class="button" type="submit">${editLine ? "Update Line" : "Add Line"}</button>
+          <button class="button" type="submit">${editLine ? "Save Line Item" : "Create Line Item"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -294,7 +294,7 @@ function registerAdmissionRoutes(app, { pool }) {
         WHERE Ticket_ID = ? AND Ticket_Type = ?`,
         [ticketType, quantity, pricePerTicket, exhibitionId || null, ticketId, original_type],
       );
-      setFlash(req, "Ticket line updated.");
+      setFlash(req, "Ticket line item updated.");
     } else {
       try {
         await pool.query(
@@ -302,7 +302,7 @@ function registerAdmissionRoutes(app, { pool }) {
           VALUES (?, ?, ?, ?, ?)`,
           [ticketId, ticketType, quantity, pricePerTicket, exhibitionId || null],
         );
-        setFlash(req, "Ticket line added.");
+        setFlash(req, "Ticket line item created.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -323,7 +323,7 @@ function registerAdmissionRoutes(app, { pool }) {
       "DELETE FROM ticket_line WHERE Ticket_ID = ? AND Ticket_Type = ?",
       [ticketId, ticketType],
     );
-    setFlash(req, "Line removed.");
+    setFlash(req, "Ticket line item removed.");
     res.redirect("/add-ticket-line");
   }));
 }

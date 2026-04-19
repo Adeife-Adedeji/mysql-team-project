@@ -74,7 +74,7 @@ function registerDepartmentRoutes(app, { pool }) {
               `).join("")}
             </select>
           </label>
-          <button class="button" type="submit">${editDepartment ? "Update Department" : "Add Department"}</button>
+          <button class="button" type="submit">${editDepartment ? "Save Department" : "Create Department"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -113,13 +113,13 @@ function registerDepartmentRoutes(app, { pool }) {
         "UPDATE Department SET Department_Name = ?, Manager_ID = ? WHERE Department_ID = ?",
         [name, managerId || null, id]
       );
-      setFlash(req, "Department updated successfully.");
+      setFlash(req, "Department record updated.");
     } else {
       await pool.query(
         "INSERT INTO Department (Department_Name, Manager_ID) VALUES (?, ?)",
         [name, managerId || null]
       );
-      setFlash(req, "Department added successfully.");
+      setFlash(req, "Department record created.");
     }
 
     res.redirect("/add-department");
@@ -129,13 +129,13 @@ function registerDepartmentRoutes(app, { pool }) {
     const idToDelete = req.body.department_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No department ID provided.");
+      setFlash(req, "Select a department record before deleting.");
       return res.redirect("/add-department");
     }
 
     await pool.query("UPDATE Employee SET Department_ID = NULL WHERE Department_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Department WHERE Department_ID = ?", [idToDelete]);
-    setFlash(req, "Department deleted successfully.");
+    setFlash(req, "Department record deleted.");
     res.redirect("/add-department");
   }));
 }

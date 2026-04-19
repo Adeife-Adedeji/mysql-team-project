@@ -25,7 +25,7 @@ INSERT INTO artist (Artist_Name, Date_of_Birth, Date_of_Death, Birth_Place) VALU
 -- Insert artworks only for the specified artists (12 records)
 -- Titles shortened to fit VARCHAR(30)
 
-INSERT INTO Artwork (Title, Type, Date_Created, Time_Period, Art_Style, Artist_ID, Created_By, Created_At)
+INSERT INTO Artwork (Title, Type, Date_Created, Time_Period, Art_Style, Artist_ID, Image_URL, Created_By, Created_At)
 SELECT 
     tmp.Title,
     tmp.Type,
@@ -33,32 +33,33 @@ SELECT
     tmp.Time_Period,
     tmp.Art_Style,
     a.Artist_ID,
+    tmp.Image_URL,
     'catalog_import',
     CURDATE()
 FROM (
-    SELECT 'Allegory' AS Title, 'Painting' AS Type, '1598-01-01' AS Date_Created, 'Mannerism (1520-1600)' AS Time_Period, 'Mannerism' AS Art_Style, 'Hans von Aachen' AS Artist_Name
+    SELECT 'Allegory' AS Title, 'Painting' AS Type, '1598-01-01' AS Date_Created, 'Mannerism (1520-1600)' AS Time_Period, 'Mannerism' AS Art_Style, 'Hans von Aachen' AS Artist_Name, '/images/allegory.jpg' AS Image_URL
     UNION ALL
-    SELECT 'The Rose Garden', 'Painting', '1877-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'Carl Frederik Aagaard'
+    SELECT 'The Rose Garden', 'Painting', '1877-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'Carl Frederik Aagaard', '/images/the-rose-garden.jpg'
     UNION ALL
-    SELECT 'The Farnese Hours', 'Illumination', '1537-04-01', 'Early Renaissance (1300-1499)', 'Renaissance', 'Giulio Clovio'
+    SELECT 'The Farnese Hours', 'Illumination', '1537-04-01', 'Early Renaissance (1300-1499)', 'Renaissance', 'Giulio Clovio', '/images/the-farnese-hours.jpg'
     UNION ALL
-    SELECT 'St Peter Martyr: Reburial', 'Sculpture', '1335-01-01', 'Early Renaissance (1300-1499)', NULL, 'Giovanni di Balduccio'
+    SELECT 'St Peter Martyr: Reburial', 'Sculpture', '1335-01-01', 'Early Renaissance (1300-1499)', NULL, 'Giovanni di Balduccio', '/images/st-peter-martyr.jpg'
     UNION ALL
-    SELECT 'Female Head Type 7', 'Graphics', '1528-01-01', 'Mannerism (1520-1600)', NULL, 'Albrecht Dürer'
+    SELECT 'Female Head Type 7', 'Graphics', '1528-01-01', 'Mannerism (1520-1600)', NULL, 'Albrecht Dürer', '/images/female-type-7.jpg'
     UNION ALL
-    SELECT 'Deposition', 'Sculpture', '1740-01-01', 'Mannerism (1520-1600)', 'Mannerism', 'Johann Paul Egell'
+    SELECT 'Deposition', 'Sculpture', '1740-01-01', 'Mannerism (1520-1600)', 'Mannerism', 'Johann Paul Egell', '/images/deposition-egell.jpg.jpg'
     UNION ALL
-    SELECT 'Leonore Discovers Dagger', 'Painting', '1795-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'John Henry Fuseli'
+    SELECT 'Leonore Discovers Dagger', 'Painting', '1795-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'John Henry Fuseli', '/images/leonore-discovers-dagger.jpg'
     UNION ALL
-    SELECT 'La Roubine du Roi', 'Graphics', '1888-06-01', 'Impressionism (1860-1890)', 'Impressionism', 'Vincent van Gogh'
+    SELECT 'La Roubine du Roi', 'Graphics', '1888-06-01', 'Impressionism (1860-1890)', 'Impressionism', 'Vincent van Gogh', '/images/la-roubine-du-roi.jpg'
     UNION ALL
-    SELECT 'The Birth of the Last Muse', 'Graphics', '1856-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'Jean-Auguste-Dominique Ingres'
+    SELECT 'The Birth of the Last Muse', 'Graphics', '1856-01-01', 'Romanticism (1800-1850)', 'Romanticism', 'Jean-Auguste-Dominique Ingres', '/images/the-birth-of-the-last-muse.jpg'
     UNION ALL
-    SELECT 'Deposition', 'Painting', NULL, 'Mannerism (1520-1600)', 'Mannerism', 'Jacopo da Empoli'
+    SELECT 'Deposition', 'Painting', NULL, 'Mannerism (1520-1600)', 'Mannerism', 'Jacopo da Empoli', '/images/deposition-empoli.jpg'
     UNION ALL
-    SELECT 'Portrait of Sir John Langham', 'Painting', '1683-01-01', 'Mannerism (1520-1600)', 'Mannerism', 'Friedrich Kerseboom'
+    SELECT 'Portrait of Sir John Langham', 'Painting', '1683-01-01', 'Mannerism (1520-1600)', 'Mannerism', 'Friedrich Kerseboom', '/images/portrait-of-john-langham.jpg'
     UNION ALL
-    SELECT 'Billiard Players', 'Painting', NULL, 'Early Renaissance (1300-1499)', NULL, 'Nicolas Lancret'
+    SELECT 'Billiard Players', 'Painting', NULL, 'Early Renaissance (1300-1499)', NULL, 'Nicolas Lancret', '/images/billiard-players.jpg'
 ) tmp
 JOIN Artist a ON a.Artist_Name = tmp.Artist_Name;
 
@@ -76,6 +77,5 @@ INSERT INTO Artwork_Condition_Report (Artwork_ID, Condition_Status, Report_Date,
 (10, 'Poor', '2026-04-08', 10, TRUE, 'Paint flaking; requires conservation', 'system', CURDATE(), 'system', CURDATE()),
 (11, 'Excellent', '2026-04-10', 11, FALSE, 'Like new', 'system', CURDATE(), 'system', CURDATE()),
 (12, 'Good', '2026-04-12', 12, FALSE, 'Minor wear', 'system', CURDATE(), 'system', CURDATE());
-
 
 

@@ -4,26 +4,26 @@ USE museumdb;
 
 
 -- gift shop items insert
-INSERT INTO Gift_Shop_Item (Name_of_Item, Price_of_Item, Category, Stock_Quantity, Created_By, Created_At, Updated_By, Updated_AT) VALUES
-('Museum Tote Bag', 24.99, 'Merchandise', 150, 'system', CURDATE(), 'system', CURDATE()),
-('Van Gogh Umbrella', 32.50, 'Apparel', 75, 'system', CURDATE(), 'system', CURDATE()),
-('Art History Coloring Book', 12.95, 'Books', 200, 'system', CURDATE(), 'system', CURDATE()),
-('Museum Magnet Set', 8.99, 'Souvenirs', 300, 'system', CURDATE(), 'system', CURDATE()),
-('Replica Ancient Coin', 45.00, 'Collectibles', 40, 'system', CURDATE(), 'system', CURDATE()),
-('Kids Art Kit', 19.99, 'Toys', 120, 'system', CURDATE(), 'system', CURDATE()),
-('Exhibition Catalog: SP 2026', 29.99, 'Books', 85, 'system', CURDATE(), 'system', CURDATE()),
-('Museum Logo Scarf', 39.99, 'Apparel', 60, 'system', CURDATE(), 'system', CURDATE());
+INSERT INTO Gift_Shop_Item (Name_of_Item, Price_of_Item, Category, Stock_Quantity, Image_URL, Created_By, Created_At, Updated_By, Updated_AT) VALUES
+('Museum Tote Bag', 24.99, 'Merchandise', 150, '/images/tote.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Van Gogh Umbrella', 32.50, 'Apparel', 75, '/images/van-gogh-umbrella.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Art History Coloring Book', 12.95, 'Books', 200, '/images/art-history-coloring-book.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Museum Magnet Set', 8.99, 'Souvenirs', 300, '/images/magnet.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Replica Ancient Coin', 45.00, 'Collectibles', 40, '/images/replica-ancient-coin.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Kids Art Kit', 19.99, 'Toys', 120, '/images/kids-art-kit.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Exhibition Catalog: SP 2026', 29.99, 'Books', 85, '/images/catalogue.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Museum Logo Scarf', 39.99, 'Apparel', 60, '/images/scarf.jpg', 'system', CURDATE(), 'system', CURDATE());
 
 -- food change
-INSERT INTO Food (Food_Name, Type, Food_Price, Stock_Quantity, Created_By, Created_At, Updated_By, Updated_AT) VALUES
-('Espresso', "Drink", 3.50, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Cappuccino', "Drink", 4.75, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Blueberry Muffin', "Snack", 3.25, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Quiche Lorraine', "Food", 7.95, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Greek Salad', "Food", 9.50, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Kids Lunch Box', "Food", 6.50, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Bottled Water', "Drink", 2.00, 100, 'system', CURDATE(), 'system', CURDATE()),
-('Chocolate Croissant', "Dessert", 4.00, 100, 'system', CURDATE(), 'system', CURDATE());
+INSERT INTO Food (Food_Name, Type, Food_Price, Stock_Quantity, Image_URL, Created_By, Created_At, Updated_By, Updated_AT) VALUES
+('Espresso', "Drink", 3.50, 100, '/images/espresso.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Cappuccino', "Drink", 4.75, 100, '/images/cappuccino.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Blueberry Muffin', "Snack", 3.25, 100, '/images/blueberry-muffin.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Quiche Lorraine', "Food", 7.95, 100, '/images/quiche.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Greek Salad', "Food", 9.50, 100, '/images/salad.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Kids Lunch Box', "Food", 6.50, 100, '/images/pretzel.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Bottled Water', "Drink", 2.00, 100, '/images/water.jpg', 'system', CURDATE(), 'system', CURDATE()),
+('Chocolate Croissant', "Dessert", 4.00, 100, '/images/croissant.jpg', 'system', CURDATE(), 'system', CURDATE());
 
 -- gift shop sale
 INSERT INTO Gift_Shop_Sale (Sale_Date, Employee_ID, Created_By, Created_At, Updated_By, Updated_At) VALUES

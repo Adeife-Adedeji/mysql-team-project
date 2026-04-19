@@ -9,16 +9,32 @@ const {
   renderPager,
   renderPage,
   requireLogin,
+  sanitizeImageUrl,
   setFlash,
   allowRoles,
   logTriggerViolation
 } = require("../helpers");
 
+async function hasColumn(pool, tableName, columnName) {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+
+  return rows.length > 0;
+}
+
 function registerExhibitionRoutes(app, { pool }) {
   app.get("/add-exhibition", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
     const exhibitionPage = getPageNumber(req.query.exhibition_page);
+    const hasImageUrlColumn = await hasColumn(pool, "Exhibition", "Image_URL");
     const [exhibitions] = await pool.query(
-      "SELECT Exhibition_ID, Exhibition_Name, Starting_Date, Ending_Date FROM Exhibition",
+      `SELECT Exhibition_ID, Exhibition_Name, Starting_Date, Ending_Date, ${hasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Exhibition`,
     );
 
     let editExhibition = null;
@@ -37,6 +53,7 @@ function registerExhibitionRoutes(app, { pool }) {
         <td>${escapeHtml(exhibition.Exhibition_Name)}</td>
         <td>${formatDisplayDate(exhibition.Starting_Date)}</td>
         <td>${formatDisplayDate(exhibition.Ending_Date)}</td>
+        <td>${exhibition.Image_URL ? `<img src="${escapeHtml(exhibition.Image_URL)}" alt="${escapeHtml(exhibition.Exhibition_Name)} preview" class="table-thumb">` : "—"}</td>
         <td class="actions">
           <form method="get" action="/add-exhibition" class="inline-form">
             <input type="hidden" name="edit_id" value="${exhibition.Exhibition_ID}">
@@ -55,12 +72,15 @@ function registerExhibitionRoutes(app, { pool }) {
       user: req.session.user,
       content: `
       <section class="card narrow">
-        <h1>${editExhibition ? "Edit Exhibition" : "Add New Exhibition"}</h1>
+        <h1>${editExhibition ? "Edit Exhibition" : "Create Exhibition"}</h1>
         ${renderFlash(req)}
         <form method="post" action="/add-exhibition" class="form-grid">
           ${editExhibition ? `<input type="hidden" name="exhibition_id" value="${editExhibition.Exhibition_ID}">` : ""}
           <label>Exhibition Name
             <input type="text" name="name" value="${editExhibition ? escapeHtml(editExhibition.Exhibition_Name) : ""}" required>
+          </label>
+          <label>Image
+            <input type="text" name="image_url" value="${editExhibition ? escapeHtml(editExhibition.Image_URL || "") : ""}" placeholder="spring-collection.jpg, /images/spring-collection.jpg, or https://...">
           </label>
           <label>Start Date
             <input type="date" name="start_date" value="${editExhibition ? formatDateInput(editExhibition.Starting_Date) : ""}" min="${today}" required>
@@ -68,7 +88,7 @@ function registerExhibitionRoutes(app, { pool }) {
           <label>End Date
             <input type="date" name="end_date" value="${editExhibition ? formatDateInput(editExhibition.Ending_Date) : ""}"  min="${today}" required>
           </label>
-          <button class="button" type="submit">${editExhibition ? "Update Exhibition" : "Add Exhibition"}</button>
+          <button class="button" type="submit">${editExhibition ? "Save Exhibition" : "Create Exhibition"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -81,11 +101,12 @@ function registerExhibitionRoutes(app, { pool }) {
               <th>Name</th>
               <th>Start</th>
               <th>End</th>
+              <th>Image</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${exhibitionRows || '<tr><td colspan="5">No exhibitions found.</td></tr>'}
+            ${exhibitionRows || '<tr><td colspan="6">No exhibitions found.</td></tr>'}
           </tbody>
         </table>
         ${renderPager(req, "exhibition_page", exhibitionPagination, "exhibition-list")}
@@ -97,6 +118,8 @@ function registerExhibitionRoutes(app, { pool }) {
   app.post("/add-exhibition", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
     const id = req.body.exhibition_id || null;
     const { name, start_date: startDate, end_date: endDate } = req.body;
+    const imageUrl = sanitizeImageUrl(req.body.image_url) || null;
+    const hasImageUrlColumn = await hasColumn(pool, "Exhibition", "Image_URL");
 
     if (!name || !startDate || !endDate) {
       setFlash(req, "All fields are required.");
@@ -116,20 +139,37 @@ function registerExhibitionRoutes(app, { pool }) {
 
     try {
       if (id) {
-        await pool.query(
-          `UPDATE Exhibition
-           SET Exhibition_Name = ?, Starting_Date = ?, Ending_Date = ?
-           WHERE Exhibition_ID = ?`,
-          [name, startDate, endDate, id],
-        );
-        setFlash(req, "Exhibition updated successfully.");
+        if (hasImageUrlColumn) {
+          await pool.query(
+            `UPDATE Exhibition
+             SET Exhibition_Name = ?, Starting_Date = ?, Ending_Date = ?, Image_URL = ?
+             WHERE Exhibition_ID = ?`,
+            [name, startDate, endDate, imageUrl, id],
+          );
+        } else {
+          await pool.query(
+            `UPDATE Exhibition
+             SET Exhibition_Name = ?, Starting_Date = ?, Ending_Date = ?
+             WHERE Exhibition_ID = ?`,
+            [name, startDate, endDate, id],
+          );
+        }
+        setFlash(req, "Exhibition record updated.");
       } else {
-        await pool.query(
-          `INSERT INTO Exhibition (Exhibition_Name, Starting_Date, Ending_Date)
-           VALUES (?, ?, ?)`,
-          [name, startDate, endDate],
-        );
-        setFlash(req, "Exhibition added successfully. Now link artwork to the exhibition.");
+        if (hasImageUrlColumn) {
+          await pool.query(
+            `INSERT INTO Exhibition (Exhibition_Name, Starting_Date, Ending_Date, Image_URL)
+             VALUES (?, ?, ?, ?)`,
+            [name, startDate, endDate, imageUrl],
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO Exhibition (Exhibition_Name, Starting_Date, Ending_Date)
+             VALUES (?, ?, ?)`,
+            [name, startDate, endDate],
+          );
+        }
+        setFlash(req, "Exhibition record created. Link artwork when ready.");
       }
     } catch (err) {
       if (err.sqlState === "45000") {
@@ -145,7 +185,7 @@ function registerExhibitionRoutes(app, { pool }) {
     const idToDelete = req.body.exhibition_id;
 
     if (!idToDelete) {
-      setFlash(req, "Error: No exhibition ID provided.");
+      setFlash(req, "Select an exhibition record before deleting.");
       return res.redirect("/add-exhibition");
     }
 
@@ -153,7 +193,7 @@ function registerExhibitionRoutes(app, { pool }) {
     await pool.query("UPDATE ticket_line SET Exhibition_ID = NULL WHERE Exhibition_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Exhibition_Artwork WHERE Exhibition_ID = ?", [idToDelete]);
     await pool.query("DELETE FROM Exhibition WHERE Exhibition_ID = ?", [idToDelete]);
-    setFlash(req, "Exhibition and its artwork links successfully deleted!");
+    setFlash(req, "Exhibition record and artwork links deleted.");
     res.redirect("/add-exhibition");
   }));
 
@@ -237,7 +277,7 @@ function registerExhibitionRoutes(app, { pool }) {
           <label>Date Installed
             <input type="date" name="date_installed" value="${editLink ? formatDateInput(editLink.Date_Installed) : ""}">
           </label>
-          <button class="button" type="submit">${editLink ? "Update Link" : "Link Artwork"}</button>
+          <button class="button" type="submit">${editLink ? "Save Link" : "Link Artwork"}</button>
         </form>
       </section>
       <section class="card narrow">
@@ -274,7 +314,7 @@ function registerExhibitionRoutes(app, { pool }) {
     } = req.body;
 
     if (!exhibitionId || !artworkId) {
-      setFlash(req, "Please select both exhibition and artwork.");
+      setFlash(req, "Select both an exhibition and an artwork record.");
       return res.redirect("/add-exhibition-artwork");
     }
 
@@ -285,7 +325,7 @@ function registerExhibitionRoutes(app, { pool }) {
          WHERE Exhibition_ID = ? AND Artwork_ID = ?`,
         [exhibitionId, artworkId, displayRoom || null, dateInstalled || null, editExhibitionId, editArtworkId],
       );
-      setFlash(req, "Artwork link updated successfully.");
+      setFlash(req, "Artwork exhibition link updated.");
     } else {
       try {
         await pool.query(
@@ -293,7 +333,7 @@ function registerExhibitionRoutes(app, { pool }) {
            VALUES (?, ?, ?, ?)`,
           [exhibitionId, artworkId, displayRoom || null, dateInstalled || null],
         );
-        setFlash(req, "Artwork linked successfully.");
+        setFlash(req, "Artwork linked to exhibition.");
       } catch (err) {
         if (err.sqlState === "45000") {
           await logTriggerViolation(pool, req, err.sqlMessage);
@@ -314,7 +354,7 @@ function registerExhibitionRoutes(app, { pool }) {
       "DELETE FROM Exhibition_Artwork WHERE Exhibition_ID = ? AND Artwork_ID = ?",
       [exhibitionId, artworkId],
     );
-    setFlash(req, "Link removed.");
+    setFlash(req, "Artwork exhibition link removed.");
     res.redirect("/add-exhibition-artwork");
   }));
 }
