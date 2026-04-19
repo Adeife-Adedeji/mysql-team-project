@@ -420,12 +420,22 @@ function registerEventRegistrationRoutes(app, { pool }) {
     }
 
     const [[eventInfo]] = await pool.query(
-      "SELECT member_only FROM Event WHERE event_ID = ?",
+      "SELECT member_only, start_Date FROM Event WHERE event_ID = ?",
       [eventId]
     );
     if (!eventInfo) {
       setFlash(req, "Event not found.");
       return res.redirect("/event-register");
+    }
+    if (eventInfo.start_Date) {
+      const eventDay = new Date(eventInfo.start_Date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      eventDay.setHours(0, 0, 0, 0);
+      if (eventDay < today) {
+        setFlash(req, "Registration is closed — this event has already taken place.");
+        return res.redirect("/event-register");
+      }
     }
 
     if (eventInfo.member_only) {

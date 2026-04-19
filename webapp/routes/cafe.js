@@ -88,11 +88,10 @@ function registerCafeRoutes(app, { pool, upload }) {
             <input type="hidden" name="edit_id" value="${food.Food_ID}">
             <button class="link-button" type="submit">Edit</button>
           </form>
-          ${isSuper ? `
-          <form method="post" action="/delete-food" class="inline-form" onsubmit="return confirm('Delete this café item?');">
+          <form method="post" action="/delete-food" class="inline-form" onsubmit="return confirm('Delete this café item? This cannot be undone.');">
             <input type="hidden" name="food_id" value="${food.Food_ID}">
             <button class="link-button danger" type="submit">Delete</button>
-          </form>` : ""}
+          </form>
         </td>
       </tr>
     `;
@@ -224,7 +223,7 @@ function registerCafeRoutes(app, { pool, upload }) {
     res.redirect("/add-food");
   }));
 
-  app.post("/delete-food", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-food", requireLogin, allowRoles(["cafe", "supervisor"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.food_id;
     if (!idToDelete) {
       setFlash(req, "Select a café item before deleting.");

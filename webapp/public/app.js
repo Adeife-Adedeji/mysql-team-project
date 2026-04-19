@@ -277,7 +277,6 @@
           nextHeading.focus({ preventScroll: true });
         }
 
-        window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
       } catch (_) {
         window.location.href = url.toString();
       } finally {
@@ -321,7 +320,6 @@
 
       event.preventDefault();
       window.history.replaceState({}, "", "/dashboard");
-      window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
     });
   };
 
