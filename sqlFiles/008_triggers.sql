@@ -1,6 +1,3 @@
--- HOW TO RUN: In MySQL Workbench use File > Run SQL Script (NOT the query editor lightning bolt)
--- The DELIMITER command only works via File > Run SQL Script
-
 USE museumdb;
 
 DELIMITER $$
@@ -9,6 +6,7 @@ DELIMITER $$
 -- Counts current signups and compares to Max_capacity from the Event table.
 -- current_count >= max_cap fires SIGNAL to block the insert.
 -- If this registration fills the last spot (current_count + 1 > max_cap), notifies the manager.
+-- changed event_name to e_event_name which prevented the message from appearing in the notification tab
 DROP TRIGGER IF EXISTS trigger_check_event_capacity$$
 CREATE TRIGGER trigger_check_event_capacity
 BEFORE INSERT ON event_registration
@@ -16,13 +14,13 @@ FOR EACH ROW
 BEGIN
     DECLARE current_count INT;
     DECLARE max_cap INT;
-    DECLARE event_name VARCHAR(30);
+    DECLARE e_event_name VARCHAR(30);
 
     SELECT COUNT(*) INTO current_count
     FROM event_registration
     WHERE Event_ID = NEW.Event_ID;
 
-    SELECT Max_capacity, event_Name INTO max_cap, event_name
+    SELECT Max_capacity, event_Name INTO max_cap, e_event_name
     FROM Event
     WHERE Event_ID = NEW.Event_ID;
 
@@ -34,10 +32,10 @@ BEGIN
     END IF;
 
     IF(
-        current_count + 1 > max_cap
+        current_count + 1 >= max_cap
     ) THEN
         INSERT INTO manager_notifications (source_table, source_id, message)
-        VALUES ('Event', NEW.Event_ID, CONCAT('Event "', event_name, '" is now fully booked'));
+        VALUES ('Event', NEW.Event_ID, CONCAT('Event "', e_event_name, '" is now fully booked'));
     END IF;
 END$$
 
@@ -59,6 +57,79 @@ BEGIN
         SET MESSAGE_TEXT = 'Artist already exists in the database';
     END IF;
 END$$
+
+-- Trigger: alert manager when gift shop stock runs low
+-- NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 means it only fires
+-- when crossing the threshold downward, not on every stock update.
+DROP TRIGGER IF EXISTS trigger_low_stock_alert$$
+CREATE TRIGGER trigger_low_stock_alert
+AFTER UPDATE ON Gift_Shop_Item
+FOR EACH ROW
+BEGIN
+    IF NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 THEN
+        INSERT INTO manager_notifications (source_table, source_id, message)
+        VALUES (
+            'Gift_Shop_Item',
+            NEW.Gift_Shop_Item_ID,
+            CONCAT('Low stock alert: "', NEW.Name_of_Item, '" has only ', NEW.Stock_Quantity, ' units remaining.')
+        );
+    END IF;
+
+    IF NEW.Stock_Quantity = 0 AND OLD.Stock_Quantity > 0 THEN
+        INSERT INTO manager_notifications (source_table, source_id, message)
+        VALUES (
+            'Gift_Shop_Item',
+            NEW.Gift_Shop_Item_ID,
+            CONCAT('Out of stock alert: "', NEW.Name_of_Item, '" is now out of stock.')
+        );
+    END IF;
+END$$
+
+-- Trigger: alert manager when an employee earns more than their supervisor
+-- Subquery looks up the supervisor's salary using NEW.Supervisor_ID and compares inline.
+-- No SIGNAL here, the employee is still saved, management just gets notified.
+DROP TRIGGER IF EXISTS trigger_salary_violation$$
+CREATE TRIGGER trigger_salary_violation
+BEFORE INSERT ON Employee
+FOR EACH ROW
+BEGIN
+    IF NEW.Salary IS NOT NULL AND NEW.Supervisor_ID IS NOT NULL THEN
+        IF NEW.Salary > (
+            SELECT Salary FROM Employee
+            WHERE Employee_ID = NEW.Supervisor_ID
+        ) THEN
+            INSERT INTO manager_notifications (source_table, source_id, message)
+            VALUES (
+                'Employee',
+                NEW.Supervisor_ID,
+                CONCAT('Salary violation: ', NEW.First_Name, ' ', NEW.Last_Name,
+                       ' has a higher salary than their supervisor (Employee_ID: ', NEW.Supervisor_ID, ')')
+            );
+        END IF;
+    END IF;
+END$$
+
+-- Trigger: alert manager when food stock runs low
+-- Only fires when crossing the threshold downward, not on every update.
+DROP TRIGGER IF EXISTS trigger_low_food_stock_alert$$
+CREATE TRIGGER trigger_low_food_stock_alert
+AFTER UPDATE ON Food
+FOR EACH ROW
+BEGIN
+    IF NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 THEN
+        INSERT INTO manager_notifications (source_table, source_id, message)
+        VALUES ('Food', NEW.Food_ID,
+            CONCAT('Low stock alert: "', NEW.Food_Name, '" has only ', NEW.Stock_Quantity, ' portions remaining.'));
+    END IF;
+
+    IF NEW.Stock_Quantity = 0 AND OLD.Stock_Quantity > 0 THEN
+        INSERT INTO manager_notifications (source_table, source_id, message)
+        VALUES ('Food', NEW.Food_ID,
+            CONCAT('Out of stock alert: "', NEW.Food_Name, '" is now out of stock.'));
+    END IF;
+END$$
+
+-- below are triggers that are more like constraints, I was too lazy to make them into their own file
 
 -- Trigger: prevent adding duplicate artwork
 
@@ -239,32 +310,6 @@ BEGIN
     WHERE Gift_Shop_Item_ID = OLD.Gift_Shop_Item_ID;
 END$$
 
--- Trigger: alert manager when gift shop stock runs low
--- NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 means it only fires
--- when crossing the threshold downward, not on every stock update.
-DROP TRIGGER IF EXISTS trigger_low_stock_alert$$
-CREATE TRIGGER trigger_low_stock_alert
-AFTER UPDATE ON Gift_Shop_Item
-FOR EACH ROW
-BEGIN
-    IF NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 THEN
-        INSERT INTO manager_notifications (source_table, source_id, message)
-        VALUES (
-            'Gift_Shop_Item',
-            NEW.Gift_Shop_Item_ID,
-            CONCAT('Low stock alert: "', NEW.Name_of_Item, '" has only ', NEW.Stock_Quantity, ' units remaining.')
-        );
-    END IF;
-
-    IF NEW.Stock_Quantity = 0 AND OLD.Stock_Quantity > 0 THEN
-        INSERT INTO manager_notifications (source_table, source_id, message)
-        VALUES (
-            'Gift_Shop_Item',
-            NEW.Gift_Shop_Item_ID,
-            CONCAT('Out of stock alert: "', NEW.Name_of_Item, '" is now out of stock.')
-        );
-    END IF;
-END$$
 
 -- Trigger: block gift shop sale if there is not enough stock
 -- DECLARE available INT creates a local variable, SELECT ... INTO loads the current stock.
@@ -326,30 +371,6 @@ BEGIN
     IF NEW.Stock_Quantity < 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Gift shop stock cannot be negative';
-    END IF;
-END$$
-
--- Trigger: alert manager when an employee earns more than their supervisor
--- Subquery looks up the supervisor's salary using NEW.Supervisor_ID and compares inline.
--- No SIGNAL here — the employee is still saved, management just gets notified.
-DROP TRIGGER IF EXISTS trigger_salary_violation$$
-CREATE TRIGGER trigger_salary_violation
-BEFORE INSERT ON Employee
-FOR EACH ROW
-BEGIN
-    IF NEW.Salary IS NOT NULL AND NEW.Supervisor_ID IS NOT NULL THEN
-        IF NEW.Salary > (
-            SELECT Salary FROM Employee
-            WHERE Employee_ID = NEW.Supervisor_ID
-        ) THEN
-            INSERT INTO manager_notifications (source_table, source_id, message)
-            VALUES (
-                'Employee',
-                NEW.Supervisor_ID,
-                CONCAT('Salary violation: ', NEW.First_Name, ' ', NEW.Last_Name,
-                       ' has a higher salary than their supervisor (Employee_ID: ', NEW.Supervisor_ID, ')')
-            );
-        END IF;
     END IF;
 END$$
 
@@ -444,25 +465,6 @@ BEGIN
     UPDATE Food SET Stock_Quantity = Stock_Quantity + OLD.Quantity WHERE Food_ID = OLD.Food_ID;
 END$$
 
--- Trigger: alert manager when food stock runs low
--- Only fires when crossing the threshold downward, not on every update.
-DROP TRIGGER IF EXISTS trigger_low_food_stock_alert$$
-CREATE TRIGGER trigger_low_food_stock_alert
-AFTER UPDATE ON Food
-FOR EACH ROW
-BEGIN
-    IF NEW.Stock_Quantity <= 5 AND OLD.Stock_Quantity > 5 THEN
-        INSERT INTO manager_notifications (source_table, source_id, message)
-        VALUES ('Food', NEW.Food_ID,
-            CONCAT('Low stock alert: "', NEW.Food_Name, '" has only ', NEW.Stock_Quantity, ' portions remaining.'));
-    END IF;
-
-    IF NEW.Stock_Quantity = 0 AND OLD.Stock_Quantity > 0 THEN
-        INSERT INTO manager_notifications (source_table, source_id, message)
-        VALUES ('Food', NEW.Food_ID,
-            CONCAT('Out of stock alert: "', NEW.Food_Name, '" is now out of stock.'));
-    END IF;
-END$$
 
 -- Trigger: block cafe sale if there is not enough food stock
 -- SELECT ... INTO loads current stock; SIGNAL blocks the insert if insufficient.
