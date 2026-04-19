@@ -471,8 +471,10 @@ function getStaffNavGroups(user) {
       {
         title: "Commercial",
         links: [
+          { href: "/gift-order", label: "Gift Shop POS", code: "POS" },
           { href: "/add-item", label: "Gift Shop Inventory", code: "GS" },
           { href: "/add-sale", label: "Gift Shop Sales", code: "SL" },
+          { href: "/order", label: "Cafe POS", code: "POS" },
           { href: "/add-food", label: "Cafe Inventory", code: "CF" },
           { href: "/add-food-sale", label: "Cafe Orders", code: "OR" },
         ],

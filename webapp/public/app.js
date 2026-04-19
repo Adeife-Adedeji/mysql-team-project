@@ -221,6 +221,7 @@
       initCafeOrders();
       initGiftOrders();
       initTourRoster();
+      initRestorationModal();
     };
 
     const loadSupervisorPage = async (url, pushState = true) => {
@@ -302,8 +303,8 @@
       loadSupervisorPage(url);
     });
 
-    window.addEventListener("popstate", () => {
-      if (document.querySelector("#main-content .supervisor-shell")) {
+    window.addEventListener("popstate", (event) => {
+      if (event.state?.supervisorPage && document.querySelector("#main-content .supervisor-shell")) {
         loadSupervisorPage(new URL(window.location.href), false);
       }
     });
@@ -324,14 +325,31 @@
     });
   };
 
+  const initScrollToButtons = () => {
+    document.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-scroll-to]");
+      if (!btn) return;
+      const target = document.getElementById(btn.dataset.scrollTo);
+      if (!target) return;
+      target.scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "start" });
+      target.classList.add("is-scroll-target");
+      setTimeout(() => target.classList.remove("is-scroll-target"), 1800);
+    });
+  };
+
   const initFlashDismiss = () => {
     document.addEventListener("click", (event) => {
       const button = event.target.closest("[data-dismiss-flash], [data-dismiss-alert]");
       if (!button) {
         return;
       }
-
       button.closest(".flash, .alert-panel")?.remove();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("[data-dismiss-membership-block]")) {
+        document.querySelector(".membership-blocked-modal")?.remove();
+      }
     });
 
     document.querySelectorAll("[data-auto-dismiss]").forEach((panel) => {
@@ -492,6 +510,94 @@
     if (idInput) idInput.addEventListener("input", update);
     document.querySelectorAll(".gs-cat-cb").forEach((cb) => cb.addEventListener("change", update));
     update();
+  };
+
+  const initRestorationModal = () => {
+    const badge = document.querySelector(".js-restoration-badge");
+    const modal = document.getElementById("restoration-modal");
+    const list = document.getElementById("restoration-modal-list");
+    if (!badge || !modal || !list) return;
+    if (modal.dataset.restorationReady === "true") return;
+    modal.dataset.restorationReady = "true";
+
+    let fetchedOnce = false;
+
+    const openModal = async () => {
+      modal.hidden = false;
+      if (fetchedOnce) return;
+      fetchedOnce = true;
+      list.innerHTML = '<li class="restoration-modal__loading">Loading&hellip;</li>';
+      try {
+        const res = await fetch("/dashboard/restoration-artworks", { credentials: "same-origin" });
+        const rows = await res.json();
+        if (!rows.length) {
+          list.innerHTML = '<li class="restoration-modal__empty">No artworks currently require restoration.</li>';
+          return;
+        }
+        list.innerHTML = rows.map((row) => `
+          <li class="restoration-modal__item" data-artwork-id="${row.Artwork_ID}">
+            <div>
+              <strong>${escapeHtml(row.Title)}</strong>
+              <span>${escapeHtml(row.Artist_Name || "Unknown")} &middot; ${escapeHtml(row.Type || "")}</span>
+              <span class="supervisor-status">${escapeHtml(row.Condition_Status || "Unknown")}</span>
+            </div>
+            <button type="button" class="button button-secondary restoration-modal__done" data-artwork-id="${row.Artwork_ID}">Done</button>
+          </li>
+        `).join("");
+      } catch (_) {
+        list.innerHTML = '<li class="restoration-modal__empty">Failed to load. Please refresh.</li>';
+      }
+    };
+
+    badge.addEventListener("click", openModal);
+
+    modal.querySelector(".restoration-modal__close")?.addEventListener("click", () => {
+      modal.hidden = true;
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!modal.hidden && !event.target.closest(".restoration-modal__card") && !event.target.closest(".js-restoration-badge")) {
+        modal.hidden = true;
+      }
+    });
+
+    document.addEventListener("click", async (event) => {
+      const doneBtn = event.target.closest(".restoration-modal__done");
+      if (!doneBtn) return;
+
+      const artworkId = doneBtn.dataset.artworkId;
+      doneBtn.disabled = true;
+      doneBtn.textContent = "…";
+
+      try {
+        const res = await fetch(`/dashboard/restoration/${artworkId}/done`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "X-Requested-With": "fetch" },
+        });
+
+        if (res.ok) {
+          const item = modal.querySelector(`li[data-artwork-id="${artworkId}"]`);
+          item?.remove();
+
+          const remaining = modal.querySelectorAll(".restoration-modal__item").length;
+          const countText = `${remaining} restoration`;
+          badge.childNodes.forEach((n) => { if (n.nodeType === 3) n.textContent = ` ${remaining} restoration`; });
+          badge.dataset.restorationCount = remaining;
+          if (!remaining) {
+            list.innerHTML = '<li class="restoration-modal__empty">All restorations have been marked done.</li>';
+            badge.classList.remove("status-badge--warning");
+            badge.classList.add("status-badge--success");
+          }
+        } else {
+          doneBtn.disabled = false;
+          doneBtn.textContent = "Done";
+        }
+      } catch (_) {
+        doneBtn.disabled = false;
+        doneBtn.textContent = "Done";
+      }
+    });
   };
 
   const initTourRoster = () => {
@@ -863,13 +969,15 @@
           .map((cell, index) => ({ cell, index }))
           .filter(({ cell, index }) => {
             const header = normalizeText(headers[index]);
+            // skip image-only cells (contain <img> but no visible text)
+            const isImageOnlyCell = cell.querySelector("img") && !cell.textContent.trim();
             return index !== actionIndex
               && index !== imageIndex
               && header !== "id"
               && !header.endsWith(" id")
-              && header !== "stock"
               && header !== "status"
-              && header !== "";
+              && header !== ""
+              && !isImageOnlyCell;
           });
         const dataCells = dataEntries.map(({ cell }) => cell);
         const preferredTitle = dataEntries.find(({ index }) => {
@@ -905,8 +1013,9 @@
         card.tabIndex = 0;
 
         const details = dataEntries.map(({ cell, index }) => {
-          const label = headers[index] || `Field ${index + 1}`;
-          const value = cell.textContent.trim() || "Not specified";
+          const rawLabel = headers[index] || `Field ${index + 1}`;
+          const label = normalizeText(rawLabel) === "stock" ? "Quantity" : rawLabel;
+          const value = cell.textContent.trim() || "—";
           return `
             <div class="record-card__detail">
               <span>${escapeHtml(label)}</span>
@@ -952,6 +1061,7 @@
   initHeroVideoToggle();
   initSupervisorNavigation();
   initOverviewNavigation();
+  initScrollToButtons();
   initFlashDismiss();
   initDateRangeValidation();
   initTicketPricing();
@@ -959,6 +1069,7 @@
   initCafeOrders();
   initGiftOrders();
   initTourRoster();
+  initRestorationModal();
   initTypewriter();
   initBackToTop();
   initAjaxPagination();
@@ -970,7 +1081,7 @@
   }
 
   const animated = document.querySelectorAll(
-    ".media-hero, .feature-card, .dashboard-card, .dashboard-section, .notification-item, .auth-card, .card, .portal-banner, .product-card, .collection-card"
+    ".media-hero, .feature-card, .dashboard-card, .dashboard-section, .notification-item, .auth-card, .card, .portal-banner, .product-card, .collection-card, .record-card"
   );
 
   animated.forEach((element, index) => {

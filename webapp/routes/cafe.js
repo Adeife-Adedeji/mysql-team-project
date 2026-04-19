@@ -617,19 +617,68 @@ function registerCafeRoutes(app, { pool, upload }) {
         connection.release();
       }
   } else {
-    try {
-      await pool.query(
-        `INSERT INTO Food_Sale_Line (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold)
-         VALUES (?, ?, ?, ?)`,
-        [saleId, foodId, quantity, food.Food_Price],
-      );
-      setFlash(req, "Item added to order.");
-    } catch (err) {
-      if (err.sqlState === "45000") {
-        await logTriggerViolation(pool, req, err.sqlMessage, `Café · Order #${saleId} · add item to order`);
-        setFlash(req, err.sqlMessage);
-      } else {
-        throw err;
+    // Check if this item already exists in the order — if so, add to its quantity instead of inserting a duplicate row
+    const [[existingLine]] = await pool.query(
+      "SELECT Quantity FROM Food_Sale_Line WHERE Food_Sale_ID = ? AND Food_ID = ?",
+      [saleId, foodId],
+    );
+
+    if (existingLine) {
+      // Item already in order — update quantity using the same transaction + stock-delta logic
+      const hasFoodStock = await hasFoodStockColumn();
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [[lockedLine]] = await connection.query(
+          "SELECT Quantity FROM Food_Sale_Line WHERE Food_Sale_ID = ? AND Food_ID = ? FOR UPDATE",
+          [saleId, foodId],
+        );
+        const newQty = (lockedLine ? lockedLine.Quantity : 0) + parseInt(quantity, 10);
+        if (hasFoodStock) {
+          const [[stockRow]] = await connection.query(
+            "SELECT Stock_Quantity, Food_Name FROM Food WHERE Food_ID = ? FOR UPDATE",
+            [foodId],
+          );
+          const delta = parseInt(quantity, 10);
+          if (delta > 0 && (!stockRow || stockRow.Stock_Quantity < delta)) {
+            await connection.rollback();
+            setFlash(req, `Not enough stock for ${stockRow ? stockRow.Food_Name : "this item"}.`);
+            return res.redirect("/add-food-sale-line");
+          }
+        }
+        await connection.query(
+          "UPDATE Food_Sale_Line SET Quantity = ? WHERE Food_Sale_ID = ? AND Food_ID = ?",
+          [newQty, saleId, foodId],
+        );
+        await connection.commit();
+        setFlash(req, "Item quantity updated.");
+      } catch (err) {
+        await connection.rollback();
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage, `Café · Order #${saleId} · quantity update`);
+          setFlash(req, err.sqlMessage || "Update blocked by a stock rule.");
+        } else {
+          throw err;
+        }
+      } finally {
+        connection.release();
+      }
+    } else {
+      // New item — insert fresh row
+      try {
+        await pool.query(
+          `INSERT INTO Food_Sale_Line (Food_Sale_ID, Food_ID, Quantity, Price_When_Food_Was_Sold)
+           VALUES (?, ?, ?, ?)`,
+          [saleId, foodId, quantity, food.Food_Price],
+        );
+        setFlash(req, "Item added to order.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage, `Café · Order #${saleId} · add item to order`);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
       }
     }
   }

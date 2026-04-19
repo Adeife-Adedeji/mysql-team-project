@@ -40,7 +40,7 @@ function registerRoutes(app, { pool, upload })
     registerCafeRoutes(app, { pool, upload });
     registerScheduleRoutes(app, { pool });
     registerConservationRoutes(app, { pool });
-    registerLoansRoutes(app, { pool });
+    registerLoansRoutes(app, { pool, upload });
     registerToursRoutes(app, { pool, upload });
 }
 

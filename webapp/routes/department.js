@@ -80,7 +80,7 @@ function registerDepartmentRoutes(app, { pool }) {
       <section class="card narrow">
         <div id="department-list"></div>
         <h2>Current Departments</h2>
-        <table>
+        <table data-no-cards="true">
           <thead>
             <tr>
               <th>ID</th>

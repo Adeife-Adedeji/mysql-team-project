@@ -9,6 +9,7 @@ const {
   renderFlash,
   renderPage,
   requireLogin,
+  setFlash,
   isAdmissions,
   isCafe,
   isGiftShop,
@@ -116,9 +117,11 @@ function renderSupervisorDashboard({
   metrics,
   collectionRows,
   flashHtml,
+  collPage = 1,
+  totalCollCount = 0,
 }) {
   const noticeItems = [
-    ...notifications.slice(0, 2).map((notice) => ({
+    ...notifications.map((notice) => ({
       type: "notification",
       title: "Supervisor notification",
       message: notice.message,
@@ -129,7 +132,7 @@ function renderSupervisorDashboard({
         </form>
       `,
     })),
-    ...triggerViolations.slice(0, 2).map((violation) => ({
+    ...triggerViolations.map((violation) => ({
       type: "rule",
       title: violation.route_path || "Business rule",
       message: violation.message,
@@ -142,32 +145,7 @@ function renderSupervisorDashboard({
       `,
     })),
   ];
-  const urgentModal = noticeItems.length ? `
-    <section class="supervisor-issue-modal" role="alert" aria-live="assertive" aria-label="Items requiring review" id="supervisor-issue-modal">
-      <div class="supervisor-issue-modal__card">
-        <div class="section-header">
-          <div>
-            <p class="eyebrow">Review Required</p>
-            <h2>${urgentCount} open item${urgentCount === 1 ? "" : "s"}</h2>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <a class="supervisor-text-action" href="#supervisor-review-required">View</a>
-            <button type="button" class="supervisor-text-action" onclick="document.getElementById('supervisor-issue-modal').style.display='none'" aria-label="Close">&times;</button>
-          </div>
-        </div>
-        <ul>
-          ${noticeItems.map((item) => `
-            <li>
-              <strong>${escapeHtml(item.title)}</strong>
-              <span>${escapeHtml(item.message)}</span>
-              ${item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
-              <small>${escapeHtml(item.time)}</small>
-            </li>
-          `).join("")}
-        </ul>
-      </div>
-    </section>
-  ` : "";
+
   const urgentBanner = urgentCount ? `
     <section class="supervisor-alert-banner" role="alert" aria-live="assertive">
       <div>
@@ -175,7 +153,7 @@ function renderSupervisorDashboard({
         <strong>${urgentCount} unresolved manager exception${urgentCount === 1 ? "" : "s"}</strong>
         <p>Review trigger violations and manager notices before continuing routine operations.</p>
       </div>
-      <a class="button button-danger" href="#supervisor-review-required">Review Now</a>
+      <button type="button" class="button button-danger" data-scroll-to="supervisor-review-required">Review Now</button>
     </section>
   ` : "";
 
@@ -202,7 +180,6 @@ function renderSupervisorDashboard({
     <div class="supervisor-shell">
       ${renderSupervisorSidebar(user, "/dashboard", urgentCount)}
       <div class="supervisor-main">
-        ${urgentModal}
         ${urgentBanner}
         <section class="supervisor-masthead">
           <div>
@@ -239,9 +216,14 @@ function renderSupervisorDashboard({
               ${urgentCount ? `<span class="status-badge status-badge--danger">${urgentCount} open</span>` : `<span class="status-badge status-badge--success">Clear</span>`}
             </div>
             ${noticeItems.length ? `
-              <ul>
+              <div class="notice-filter-group">
+                <button type="button" class="notice-filter-btn notice-filter-btn--active" onclick="filterNotices('all', this)">All (${noticeItems.length})</button>
+                <button type="button" class="notice-filter-btn" onclick="filterNotices('notification', this)">Notifications (${notifications.length})</button>
+                <button type="button" class="notice-filter-btn" onclick="filterNotices('rule', this)">Violations (${triggerViolations.length})</button>
+              </div>
+              <ul id="notices-list">
                 ${noticeItems.map((item) => `
-                  <li>
+                  <li data-notice-type="${escapeHtml(item.type)}">
                     <span class="supervisor-notice-dot supervisor-notice-dot--${escapeHtml(item.type)}"></span>
                     <div>
                       <strong>${escapeHtml(item.title)}</strong>
@@ -253,8 +235,19 @@ function renderSupervisorDashboard({
                   </li>
                 `).join("")}
               </ul>
+              <script>
+                function filterNotices(type, btn) {
+                  document.querySelectorAll('#notices-list li[data-notice-type]').forEach(function(li) {
+                    li.style.display = (type === 'all' || li.dataset.noticeType === type) ? '' : 'none';
+                  });
+                  document.querySelectorAll('.notice-filter-btn').forEach(function(b) {
+                    b.classList.remove('notice-filter-btn--active');
+                  });
+                  if (btn) btn.classList.add('notice-filter-btn--active');
+                }
+              </script>
             ` : `<div class="empty-state"><p>No notifications or trigger violations require action.</p></div>`}
-            ${notifications.length > 2 ? `
+            ${notifications.length > 0 ? `
               <form method="post" action="/notifications/clear">
                 <button class="supervisor-text-action" type="submit">Clear all notifications</button>
               </form>
@@ -287,6 +280,18 @@ function renderSupervisorDashboard({
           </article>
         </section>
 
+        <div id="restoration-modal" class="restoration-modal" role="dialog" aria-modal="true" aria-label="Artworks needing restoration" hidden>
+          <div class="restoration-modal__card">
+            <div class="restoration-modal__header">
+              <h2>Restoration Required</h2>
+              <button type="button" class="restoration-modal__close" aria-label="Close restoration panel">&#x2715;</button>
+            </div>
+            <ul class="restoration-modal__list" id="restoration-modal-list">
+              <li class="restoration-modal__loading">Loading&hellip;</li>
+            </ul>
+          </div>
+        </div>
+
         <section class="supervisor-lower-grid">
           <div class="supervisor-collection-panel">
             <div class="section-header">
@@ -294,9 +299,14 @@ function renderSupervisorDashboard({
                 <p class="eyebrow">Collections & Conservation</p>
                 <h2>Collection status sample</h2>
               </div>
-              <span class="status-badge status-badge--${metrics.restorationOpen ? "warning" : "success"}">${formatMetric(metrics.restorationOpen)} restoration</span>
+              <div class="supervisor-collection-actions">
+                <a class="button button-secondary supervisor-collection-showall" href="/condition-reports">Show All</a>
+                <button type="button" class="status-badge status-badge--${metrics.restorationOpen ? "warning" : "success"} js-restoration-badge" data-restoration-count="${metrics.restorationOpen}">
+                  ${formatMetric(metrics.restorationOpen)} restoration
+                </button>
+              </div>
             </div>
-            <table class="supervisor-table">
+            <table class="supervisor-table" data-no-cards="true">
               <thead>
                 <tr>
                   <th>Artwork Identity</th>
@@ -306,6 +316,15 @@ function renderSupervisorDashboard({
               </thead>
               <tbody>${collectionHtml}</tbody>
             </table>
+            <div class="supervisor-collection-pager">
+              ${collPage > 1
+                ? `<a class="button button-secondary" href="/dashboard?collPage=${collPage - 1}">&#8592; Previous</a>`
+                : `<span class="button button-secondary supervisor-pager-disabled">&#8592; Previous</span>`}
+              <span class="supervisor-pager-info">Page ${collPage} of ${Math.max(1, Math.ceil(totalCollCount / 4))}</span>
+              ${collectionRows.length === 4 && collPage * 4 < totalCollCount
+                ? `<a class="button button-secondary" href="/dashboard?collPage=${collPage + 1}">Next &#8594;</a>`
+                : `<span class="button button-secondary supervisor-pager-disabled">Next &#8594;</span>`}
+            </div>
             <div class="supervisor-mini-grid">
               <div>
                 <span>Open Loans</span>
@@ -369,6 +388,16 @@ function registerDashboardRoutes(app, { pool }) {
           [membershipId],
         );
         membershipInfo = memberRow || null;
+      }
+
+      if (membershipInfo?.Status === "Expired") {
+        setFlash(req, "Your membership has expired — please renew below to restore portal access.");
+        return res.redirect("/purchase-membership");
+      }
+
+      if (membershipInfo?.Status === "Cancelled") {
+        req.session.destroy(() => {});
+        return res.redirect("/member-login?blocked=cancelled");
       }
 
       const [[ticketRow]] = membershipId
@@ -660,6 +689,9 @@ function registerDashboardRoutes(app, { pool }) {
     }
 
     const urgentCount = notifications.length + triggerViolations.length;
+    const collPage = Math.max(1, parseInt(req.query.collPage || "1", 10));
+    const collOffset = (collPage - 1) * 4;
+
     const [
       ticketRevenue,
       giftRevenue,
@@ -678,7 +710,6 @@ function registerDashboardRoutes(app, { pool }) {
       scheduledStaff,
       employeeCount,
       recentArtworks,
-      collectionRows,
     ] = await Promise.all([
       getScalar(pool, `SELECT COALESCE(SUM(tl.Total_sum_of_ticket), 0) AS value FROM Ticket t JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID WHERE t.Purchase_Date = CURDATE()`, "value"),
       getScalar(pool, `SELECT COALESCE(SUM(gsl.Total_Sum_For_Gift_Shop_Sale), 0) AS value FROM Gift_Shop_Sale gs JOIN Gift_Shop_Sale_Line gsl ON gs.Gift_Shop_Sale_ID = gsl.Gift_Shop_Sale_ID WHERE gs.Sale_Date = CURDATE()`, "value"),
@@ -697,29 +728,33 @@ function registerDashboardRoutes(app, { pool }) {
       getScalar(pool, `SELECT COUNT(DISTINCT Employee_ID) AS value FROM Schedule WHERE Shift_Date = CURDATE()`, "value"),
       getScalar(pool, `SELECT COUNT(*) AS value FROM Employee`, "value"),
       getScalar(pool, `SELECT COUNT(*) AS value FROM Artwork WHERE Created_At >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`, "value"),
-      getRows(pool, `
-        SELECT
-          aw.Title,
-          aw.Type,
-          ar.Artist_Name,
-          COALESCE(cr.Condition_Status, 'Pending') AS Condition_Status
-        FROM Artwork aw
-        LEFT JOIN Artist ar ON aw.Artist_ID = ar.Artist_ID
-        LEFT JOIN Artwork_Condition_Report cr
-          ON cr.Report_ID = (
-            SELECT cr2.Report_ID
-            FROM Artwork_Condition_Report cr2
-            WHERE cr2.Artwork_ID = aw.Artwork_ID
-            ORDER BY cr2.Report_Date DESC, cr2.Report_ID DESC
-            LIMIT 1
-          )
-        ORDER BY
-          cr.Report_ID IS NULL,
-          FIELD(cr.Condition_Status, 'Critical', 'Poor', 'Fair', 'Good', 'Excellent'),
-          aw.Title
-        LIMIT 4
-      `),
     ]);
+
+    const [[totalCollRow]] = await pool.query(`SELECT COUNT(*) AS total FROM Artwork`);
+    const totalCollCount = Number(totalCollRow?.total || 0);
+
+    const [collectionRows] = await pool.query(`
+      SELECT
+        aw.Title,
+        aw.Type,
+        ar.Artist_Name,
+        COALESCE(cr.Condition_Status, 'Pending') AS Condition_Status
+      FROM Artwork aw
+      LEFT JOIN Artist ar ON aw.Artist_ID = ar.Artist_ID
+      LEFT JOIN Artwork_Condition_Report cr
+        ON cr.Report_ID = (
+          SELECT cr2.Report_ID
+          FROM Artwork_Condition_Report cr2
+          WHERE cr2.Artwork_ID = aw.Artwork_ID
+          ORDER BY cr2.Report_Date DESC, cr2.Report_ID DESC
+          LIMIT 1
+        )
+      ORDER BY
+        cr.Report_ID IS NULL,
+        FIELD(cr.Condition_Status, 'Critical', 'Poor', 'Fair', 'Good', 'Excellent'),
+        aw.Title
+      LIMIT 4 OFFSET ?
+    `, [collOffset]);
 
     const metrics = {
       ticketRevenue,
@@ -761,6 +796,8 @@ function registerDashboardRoutes(app, { pool }) {
           metrics,
           collectionRows,
           flashHtml: renderFlash(req),
+          collPage,
+          totalCollCount,
         })}
       `,
     }));
@@ -804,6 +841,60 @@ function registerDashboardRoutes(app, { pool }) {
     }
     await pool.query(`UPDATE trigger_violation_log SET is_resolved = TRUE WHERE is_resolved = FALSE`);
     res.redirect("/dashboard");
+  }));
+
+  app.get("/dashboard/restoration-artworks", requireLogin, asyncHandler(async (req, res) => {
+    if (!isSupervisor(req.session.user)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const [rows] = await pool.query(`
+      SELECT
+        aw.Artwork_ID,
+        aw.Title,
+        aw.Type,
+        ar.Artist_Name,
+        cr.Condition_Status,
+        cr.Report_Date
+      FROM Artwork aw
+      LEFT JOIN Artist ar ON aw.Artist_ID = ar.Artist_ID
+      LEFT JOIN Artwork_Condition_Report cr
+        ON cr.Report_ID = (
+          SELECT cr2.Report_ID
+          FROM Artwork_Condition_Report cr2
+          WHERE cr2.Artwork_ID = aw.Artwork_ID
+          ORDER BY cr2.Report_Date DESC, cr2.Report_ID DESC
+          LIMIT 1
+        )
+      WHERE cr.Restoration_Required = TRUE
+      ORDER BY
+        FIELD(cr.Condition_Status, 'Critical', 'Poor', 'Fair', 'Good', 'Excellent'),
+        aw.Title
+    `);
+    res.json(rows);
+  }));
+
+  app.post("/dashboard/restoration/:artwork_id/done", requireLogin, asyncHandler(async (req, res) => {
+    if (!isSupervisor(req.session.user)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const artworkId = parseInt(req.params.artwork_id, 10);
+    if (!artworkId) return res.status(400).json({ error: "Invalid ID" });
+
+    await pool.query(`
+      UPDATE Artwork_Condition_Report
+      SET Restoration_Required = FALSE
+      WHERE Report_ID = (
+        SELECT r FROM (
+          SELECT Report_ID AS r
+          FROM Artwork_Condition_Report
+          WHERE Artwork_ID = ?
+          ORDER BY Report_Date DESC, Report_ID DESC
+          LIMIT 1
+        ) sub
+      )
+    `, [artworkId]);
+
+    res.json({ ok: true });
   }));
 }
 

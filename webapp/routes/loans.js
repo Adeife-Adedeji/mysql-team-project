@@ -12,7 +12,20 @@ const {
   logTriggerViolation
 } = require("../helpers");
 
-function registerLoansRoutes(app, { pool }) {
+async function hasColumn(pool, tableName, columnName) {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName],
+  );
+  return rows.length > 0;
+}
+
+function registerLoansRoutes(app, { pool, upload }) {
 
   // GET /institutions
   // Manage external institutions (other museums, galleries).
@@ -20,8 +33,9 @@ function registerLoansRoutes(app, { pool }) {
   // Access: supervisor only
   
   app.get("/institutions", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
+    const hasImageUrlColumn = await hasColumn(pool, "Institution", "Image_URL");
     const [institutions] = await pool.query(
-      "SELECT * FROM Institution ORDER BY Institution_Name"
+      `SELECT *, ${hasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Institution ORDER BY Institution_Name`
     );
 
     let editInstitution = null;
@@ -36,6 +50,7 @@ function registerLoansRoutes(app, { pool }) {
     const institutionRows = institutions.map((i) => `
       <tr>
         <td>${i.Institution_ID}</td>
+        ${hasImageUrlColumn ? `<td>${i.Image_URL ? `<img src="${escapeHtml(i.Image_URL)}" alt="${escapeHtml(i.Institution_Name)} logo" class="table-thumb">` : "—"}</td>` : ""}
         <td>${escapeHtml(i.Institution_Name)}</td>
         <td>${escapeHtml(i.City || "—")}</td>
         <td>${escapeHtml(i.Country || "—")}</td>
@@ -55,6 +70,8 @@ function registerLoansRoutes(app, { pool }) {
       </tr>
     `).join("");
 
+    const colspan = hasImageUrlColumn ? 8 : 7;
+
     res.send(renderPage({
       title: "Institutions",
       user: req.session.user,
@@ -62,12 +79,17 @@ function registerLoansRoutes(app, { pool }) {
       <section class="card narrow">
         <h1>${editInstitution ? "Edit Institution" : "Manage Institutions"}</h1>
         ${renderFlash(req)}
-        <form method="post" action="/institutions" class="form-grid">
+        <form method="post" action="/institutions" class="form-grid"${hasImageUrlColumn ? ' enctype="multipart/form-data"' : ""}>
           ${editInstitution ? `<input type="hidden" name="institution_id" value="${editInstitution.Institution_ID}">` : ""}
           <label>Institution Name
             <input type="text" name="institution_name" required
               value="${editInstitution ? escapeHtml(editInstitution.Institution_Name) : ""}">
           </label>
+          ${hasImageUrlColumn ? `
+          <label>Image
+            ${editInstitution && editInstitution.Image_URL ? `<img src="${escapeHtml(editInstitution.Image_URL)}" alt="Current image" class="table-thumb" style="display:block;margin-bottom:0.4rem">` : ""}
+            <input type="file" name="image_file" accept="image/*">
+          </label>` : ""}
           <label>City
             <input type="text" name="city"
               value="${editInstitution ? escapeHtml(editInstitution.City || "") : ""}">
@@ -98,6 +120,7 @@ function registerLoansRoutes(app, { pool }) {
           <thead>
             <tr>
               <th>ID</th>
+              ${hasImageUrlColumn ? "<th>Image</th>" : ""}
               <th>Name</th>
               <th>City</th>
               <th>Country</th>
@@ -107,7 +130,7 @@ function registerLoansRoutes(app, { pool }) {
             </tr>
           </thead>
           <tbody>
-            ${institutionRows || '<tr><td colspan="7">No institutions on record.</td></tr>'}
+            ${institutionRows || `<tr><td colspan="${colspan}">No institutions on record.</td></tr>`}
           </tbody>
         </table>
         <p style="margin-top:1rem"><a class="button button-secondary" href="/artwork-loans">Manage Artwork Loans →</a></p>
@@ -117,7 +140,7 @@ function registerLoansRoutes(app, { pool }) {
   }));
 
 
-  app.post("/institutions", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
+  app.post("/institutions", requireLogin, allowRoles(["supervisor", "curator"]), upload.single("image_file"), asyncHandler(async (req, res) => {
     const {
       institution_id: institutionId,
       institution_name: institutionName,
@@ -132,25 +155,50 @@ function registerLoansRoutes(app, { pool }) {
       return res.redirect("/institutions");
     }
 
+    const hasImageUrlColumn = await hasColumn(pool, "Institution", "Image_URL");
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
     if (institutionId) {
-      await pool.query(
-        `UPDATE Institution
-         SET Institution_Name = ?, City = ?, Country = ?,
-             Contact_Name = ?, Contact_Email = ?, Contact_Phone = ?, Updated_At = CURDATE()
-         WHERE Institution_ID = ?`,
-        [institutionName.trim(), city || null, country || null,
-         contactName || null, contactEmail || null, contactPhone || null,
-         institutionId]
-      );
+      if (hasImageUrlColumn && imageUrl) {
+        await pool.query(
+          `UPDATE Institution
+           SET Institution_Name = ?, City = ?, Country = ?,
+               Contact_Name = ?, Contact_Email = ?, Contact_Phone = ?, Image_URL = ?, Updated_At = CURDATE()
+           WHERE Institution_ID = ?`,
+          [institutionName.trim(), city || null, country || null,
+           contactName || null, contactEmail || null, contactPhone || null,
+           imageUrl, institutionId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE Institution
+           SET Institution_Name = ?, City = ?, Country = ?,
+               Contact_Name = ?, Contact_Email = ?, Contact_Phone = ?, Updated_At = CURDATE()
+           WHERE Institution_ID = ?`,
+          [institutionName.trim(), city || null, country || null,
+           contactName || null, contactEmail || null, contactPhone || null,
+           institutionId]
+        );
+      }
       setFlash(req, "Institution updated.");
     } else {
-      await pool.query(
-        `INSERT INTO Institution
-           (Institution_Name, City, Country, Contact_Name, Contact_Email, Contact_Phone, Created_At)
-         VALUES (?, ?, ?, ?, ?, ?, CURDATE())`,
-        [institutionName.trim(), city || null, country || null,
-         contactName || null, contactEmail || null, contactPhone || null]
-      );
+      if (hasImageUrlColumn) {
+        await pool.query(
+          `INSERT INTO Institution
+             (Institution_Name, City, Country, Contact_Name, Contact_Email, Contact_Phone, Image_URL, Created_At)
+           VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE())`,
+          [institutionName.trim(), city || null, country || null,
+           contactName || null, contactEmail || null, contactPhone || null, imageUrl]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO Institution
+             (Institution_Name, City, Country, Contact_Name, Contact_Email, Contact_Phone, Created_At)
+           VALUES (?, ?, ?, ?, ?, ?, CURDATE())`,
+          [institutionName.trim(), city || null, country || null,
+           contactName || null, contactEmail || null, contactPhone || null]
+        );
+      }
       setFlash(req, "Institution added.");
     }
 

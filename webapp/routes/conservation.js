@@ -75,8 +75,13 @@ function registerConservationRoutes(app, { pool }) {
           <td>${formatDisplayDate(row.Report_Date)}</td>
           <td>${escapeHtml(row.Inspector_Name || "—")}</td>
           <td>
-            <a class="link-button" href="/condition-reports/history?artwork_id=${row.Artwork_ID}">History</a>
+            <a class="link-button muted" href="/condition-reports/history?artwork_id=${row.Artwork_ID}">History</a>
             <a class="link-button" href="/condition-reports?artwork_id=${row.Artwork_ID}">New Report</a>
+            ${row.Report_ID ? `
+              <form method="post" action="/condition-reports/${row.Report_ID}/delete" class="inline-form" onsubmit="return confirm('Delete this condition report? This cannot be undone.')">
+                <button type="submit" class="link-button danger">Delete Report</button>
+              </form>
+            ` : ""}
           </td>
         </tr>
       `;
@@ -268,6 +273,22 @@ function registerConservationRoutes(app, { pool }) {
       </section>
       `,
     }));
+  }));
+
+  app.post("/condition-reports/:report_id/delete", requireLogin, allowRoles(["supervisor", "curator"]), asyncHandler(async (req, res) => {
+    const reportId = parseInt(req.params.report_id, 10);
+    if (!reportId) {
+      setFlash(req, "Invalid report.");
+      return res.redirect("/condition-reports");
+    }
+
+    await pool.query(
+      `DELETE FROM Artwork_Condition_Report WHERE Report_ID = ?`,
+      [reportId]
+    );
+
+    setFlash(req, "Condition report deleted.");
+    res.redirect("/condition-reports");
   }));
 
 }

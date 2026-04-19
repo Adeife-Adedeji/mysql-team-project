@@ -8,13 +8,47 @@ const {
   asyncHandler,
 } = require("../helpers");
 
-function renderLoginPage({ req, title, eyebrow, heading, intro, action, secondaryLink, hiddenAudience, mediaTitle, mediaCopy, imagePath }) {
+function renderMembershipBlockedModal(type) {
+  const isCancelled = type === "cancelled";
+  return `
+    <div class="membership-blocked-modal" role="alertdialog" aria-modal="true" aria-labelledby="blocked-title">
+      <div class="membership-blocked-modal__card">
+        <span class="membership-blocked-modal__badge membership-blocked-modal__badge--${isCancelled ? "cancelled" : "expired"}">
+          ${isCancelled ? "Membership Cancelled" : "Membership Expired"}
+        </span>
+        <h2 id="blocked-title">${isCancelled ? "Access Restricted" : "Renewal Required"}</h2>
+        <p>
+          ${isCancelled
+            ? "Your museum membership has been cancelled. Portal access is not available for cancelled accounts."
+            : "Your museum membership has expired. You must renew before you can access the member portal."}
+        </p>
+        <div class="membership-blocked-modal__contact">
+          ${isCancelled
+            ? "<strong>Next step:</strong> Please speak with our <strong>Admissions team</strong> or a <strong>Supervisor</strong> at the front desk to have your account reviewed."
+            : "<strong>Next step:</strong> Click <strong>Proceed to Renewal</strong> below. You will be taken to the membership renewal page where you can restore your access."}
+        </div>
+        <div class="membership-blocked-modal__actions">
+          ${isCancelled
+            ? `<button type="button" class="button button-secondary" data-dismiss-membership-block>I Understand</button>`
+            : `<button type="button" class="button button-secondary" data-dismiss-membership-block>Dismiss</button>
+               <form method="post" action="/member-renewal-continue">
+                 <button type="submit" class="button">Proceed to Renewal &rarr;</button>
+               </form>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLoginPage({ req, title, eyebrow, heading, intro, action, secondaryLink, hiddenAudience, mediaTitle, mediaCopy, imagePath, blocked }) {
+  const blockedModal = blocked ? renderMembershipBlockedModal(blocked) : "";
   return renderPage({
     title,
     user: req.session.user,
     currentPath: req.path,
     pageTheme: hiddenAudience === "member" ? "member-entry" : "staff-entry",
     content: `
+      ${blockedModal}
       <section class="card auth-card auth-shell">
         <div class="auth-panel">
           <h1>${heading}</h1>
@@ -234,6 +268,8 @@ function registerAuthenticationRoutes(app, { pool }) {
       return res.redirect("/dashboard");
     }
 
+    const blocked = ["cancelled", "expired"].includes(req.query.blocked) ? req.query.blocked : null;
+
     res.send(renderLoginPage({
       req,
       title: "Member Login",
@@ -246,6 +282,7 @@ function registerAuthenticationRoutes(app, { pool }) {
       mediaTitle: "Member Access",
       mediaCopy: "",
       imagePath: "/images/museum3.jpg",
+      blocked,
     }));
   });
 
@@ -320,6 +357,29 @@ function registerAuthenticationRoutes(app, { pool }) {
       return res.redirect("/staff-login");
     }
 
+    if (audience === "member" && authenticatedUser.membership_id) {
+      const [[membership]] = await pool.query(
+        `SELECT Status FROM Membership WHERE Membership_ID = ?`,
+        [authenticatedUser.membership_id]
+      );
+      const membershipStatus = membership?.Status;
+      if (membershipStatus === "Cancelled") {
+        return res.redirect("/member-login?blocked=cancelled");
+      }
+      if (membershipStatus === "Expired") {
+        req.session.pendingRenewal = {
+          id: authenticatedUser.id,
+          name: authenticatedUser.name,
+          email: authenticatedUser.email,
+          role: authenticatedUser.role,
+          employeeId: authenticatedUser.employee_id,
+          membershipId: authenticatedUser.membership_id,
+          expiresAt: Date.now() + 5 * 60 * 1000,
+        };
+        return res.redirect("/member-login?blocked=expired");
+      }
+    }
+
     req.session.user = {
       id: authenticatedUser.id,
       name: authenticatedUser.name,
@@ -371,6 +431,27 @@ function registerAuthenticationRoutes(app, { pool }) {
 
     setFlash(req, "Account created. Sign in to continue.");
     res.redirect("/member-login");
+  }));
+
+  app.post("/member-renewal-continue", asyncHandler(async (req, res) => {
+    const pending = req.session.pendingRenewal;
+    if (!pending || Date.now() > pending.expiresAt) {
+      setFlash(req, "Session expired. Please log in again.");
+      return res.redirect("/member-login");
+    }
+
+    req.session.user = {
+      id: pending.id,
+      name: pending.name,
+      email: pending.email,
+      role: pending.role,
+      employeeId: pending.employeeId,
+      membershipId: pending.membershipId,
+    };
+    delete req.session.pendingRenewal;
+
+    setFlash(req, "Your membership has expired — please renew below to restore full portal access.");
+    res.redirect("/purchase-membership");
   }));
 
   app.post("/logout", (req, res) => {

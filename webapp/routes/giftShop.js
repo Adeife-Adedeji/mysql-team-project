@@ -594,20 +594,66 @@ function registerGiftShopRoutes(app, { pool, upload }) {
         connection.release();
       }
   } else {
-    try {
-      await pool.query(
-        `INSERT INTO Gift_Shop_Sale_Line
-         (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
-         VALUES (?, ?, ?, ?, ?)`,
-        [saleId, itemId, quantity, price, total],
-      );
-      setFlash(req, "Item added to sale.");
-    } catch (err) {
-      if (err.sqlState === "45000") {
-        await logTriggerViolation(pool, req, err.sqlMessage, `Gift Shop · Sale #${saleId} · add item to sale`);
-        setFlash(req, err.sqlMessage);
-      } else {
-        throw err;
+    // Check if this item already exists in the sale — if so, add to its quantity instead of inserting a duplicate row
+    const [[existingLine]] = await pool.query(
+      "SELECT Quantity FROM Gift_Shop_Sale_Line WHERE Gift_Shop_Sale_ID = ? AND Gift_Shop_Item_ID = ?",
+      [saleId, itemId],
+    );
+
+    if (existingLine) {
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [[lockedLine]] = await connection.query(
+          "SELECT Quantity FROM Gift_Shop_Sale_Line WHERE Gift_Shop_Sale_ID = ? AND Gift_Shop_Item_ID = ? FOR UPDATE",
+          [saleId, itemId],
+        );
+        const [[stockRow]] = await connection.query(
+          "SELECT Stock_Quantity, Name_of_Item FROM Gift_Shop_Item WHERE Gift_Shop_Item_ID = ? FOR UPDATE",
+          [itemId],
+        );
+        const addedQty = parseInt(quantity, 10);
+        const newQty = (lockedLine ? lockedLine.Quantity : 0) + addedQty;
+        if (addedQty > 0 && (!stockRow || stockRow.Stock_Quantity < addedQty)) {
+          await connection.rollback();
+          setFlash(req, `Not enough stock for ${stockRow ? stockRow.Name_of_Item : "this item"}.`);
+          return res.redirect("/add-sale-line");
+        }
+        await connection.query(
+          `UPDATE Gift_Shop_Sale_Line
+           SET Quantity = ?, Total_Sum_For_Gift_Shop_Sale = ?
+           WHERE Gift_Shop_Sale_ID = ? AND Gift_Shop_Item_ID = ?`,
+          [newQty, price * newQty, saleId, itemId],
+        );
+        await connection.commit();
+        setFlash(req, "Item quantity updated.");
+      } catch (err) {
+        await connection.rollback();
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage, `Gift Shop · Sale #${saleId} · quantity update`);
+          setFlash(req, err.sqlMessage || "Update blocked by a stock rule.");
+        } else {
+          throw err;
+        }
+      } finally {
+        connection.release();
+      }
+    } else {
+      try {
+        await pool.query(
+          `INSERT INTO Gift_Shop_Sale_Line
+           (Gift_Shop_Sale_ID, Gift_Shop_Item_ID, Quantity, Price_When_Item_is_Sold, Total_Sum_For_Gift_Shop_Sale)
+           VALUES (?, ?, ?, ?, ?)`,
+          [saleId, itemId, quantity, price, total],
+        );
+        setFlash(req, "Item added to sale.");
+      } catch (err) {
+        if (err.sqlState === "45000") {
+          await logTriggerViolation(pool, req, err.sqlMessage, `Gift Shop · Sale #${saleId} · add item to sale`);
+          setFlash(req, err.sqlMessage);
+        } else {
+          throw err;
+        }
       }
     }
   }
