@@ -122,6 +122,61 @@ function findInvalidDateRange(ranges) {
   return ranges.find((range) => hasDateMismatch(range.start, range.end)) || null;
 }
 
+function escapeCsv(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function sendCsv(res, filename, headers, rows) {
+  const lines = [
+    headers.map(escapeCsv).join(","),
+    ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),
+  ];
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  return res.send(lines.join("\n"));
+}
+
+function addQueryParam(req, key, value) {
+  const params = new URLSearchParams(req.query);
+  params.set(key, value);
+  return `/reports?${params.toString()}`;
+}
+
+function getPreviousRange(start, end) {
+  if (!start || !end) {
+    return null;
+  }
+
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const days = Math.max(Math.round((endDate - startDate) / dayMs) + 1, 1);
+  const previousEnd = new Date(startDate.getTime() - dayMs);
+  const previousStart = new Date(previousEnd.getTime() - ((days - 1) * dayMs));
+  return {
+    start: previousStart.toISOString().slice(0, 10),
+    end: previousEnd.toISOString().slice(0, 10),
+  };
+}
+
+function formatDelta(current, previous, suffix = "") {
+  const currentValue = numberValue(current);
+  const previousValue = numberValue(previous);
+  if (previousValue === 0) {
+    return currentValue > 0 ? `No previous ${suffix || "activity"}` : "No change";
+  }
+
+  const delta = ((currentValue - previousValue) / previousValue) * 100;
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1)}% vs previous${suffix ? ` ${suffix}` : ""}`;
+}
+
 function registerReportsRoutes(app, { pool }) {
     
   app.get("/reports", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
@@ -129,6 +184,8 @@ function registerReportsRoutes(app, { pool }) {
     const salesEnd = req.query.sales_end?.trim() || null;
     const salesPurchaseType = req.query.sales_purchase_type?.trim() || null;
     const salesMemberMode = req.query.sales_member_mode?.trim() || null;
+    const salesPaymentMethod = req.query.sales_payment_method?.trim() || null;
+    const exportType = req.query.export?.trim() || null;
     const department = req.query.department?.trim() || null;
     const revenueStart = req.query.revenue_start?.trim() || null;
     const revenueEnd = req.query.revenue_end?.trim() || null;
@@ -180,7 +237,7 @@ function registerReportsRoutes(app, { pool }) {
     const dutyList = [];
 
     const [ticketSalesRows] = await pool.query(
-      `SELECT T.Visit_Date, T.Purchase_type, TL.Ticket_Type,
+      `SELECT T.Visit_Date, T.Purchase_type, T.Payment_method, TL.Ticket_Type,
               CASE WHEN T.Membership_ID IS NULL THEN 'Guest' ELSE 'Member' END AS Buyer_Type,
               SUM(TL.Quantity) AS Tickets_Sold, SUM(TL.Total_sum_of_ticket) AS Revenue
        FROM Ticket T
@@ -188,15 +245,17 @@ function registerReportsRoutes(app, { pool }) {
        WHERE (? IS NULL OR T.Purchase_Date >= ?)
          AND (? IS NULL OR T.Purchase_Date <= ?)
          AND (? IS NULL OR T.Purchase_type = ?)
+         AND (? IS NULL OR T.Payment_method = ?)
          AND (? IS NULL
               OR (? = 'member' AND T.Membership_ID IS NOT NULL)
               OR (? = 'guest' AND T.Membership_ID IS NULL))
-       GROUP BY T.Visit_Date, T.Purchase_type, TL.Ticket_Type, Buyer_Type
-       ORDER BY T.Visit_Date DESC, T.Purchase_type, TL.Ticket_Type`,
+       GROUP BY T.Visit_Date, T.Purchase_type, T.Payment_method, TL.Ticket_Type, Buyer_Type
+       ORDER BY T.Visit_Date DESC, T.Purchase_type, T.Payment_method, TL.Ticket_Type`,
       [
         salesStart, salesStart,
         salesEnd, salesEnd,
         salesPurchaseType, salesPurchaseType,
+        salesPaymentMethod, salesPaymentMethod,
         salesMemberMode, salesMemberMode, salesMemberMode,
       ],
     );
@@ -210,6 +269,7 @@ function registerReportsRoutes(app, { pool }) {
        WHERE (? IS NULL OR T.Purchase_Date >= ?)
          AND (? IS NULL OR T.Purchase_Date <= ?)
          AND (? IS NULL OR T.Purchase_type = ?)
+         AND (? IS NULL OR T.Payment_method = ?)
          AND (? IS NULL
               OR (? = 'member' AND T.Membership_ID IS NOT NULL)
               OR (? = 'guest' AND T.Membership_ID IS NULL))`,
@@ -217,9 +277,33 @@ function registerReportsRoutes(app, { pool }) {
         salesStart, salesStart,
         salesEnd, salesEnd,
         salesPurchaseType, salesPurchaseType,
+        salesPaymentMethod, salesPaymentMethod,
         salesMemberMode, salesMemberMode, salesMemberMode,
       ]
     );
+    const salesPreviousRange = getPreviousRange(salesStart, salesEnd);
+    const [[previousTicketSalesSummary]] = salesPreviousRange
+      ? await pool.query(
+          `SELECT COALESCE(SUM(TL.Quantity), 0) AS Total_Tickets,
+                  COALESCE(SUM(TL.Total_sum_of_ticket), 0) AS Total_Revenue,
+                  COUNT(DISTINCT T.Ticket_ID) AS Total_Orders
+           FROM Ticket T
+           JOIN ticket_line TL ON TL.Ticket_ID = T.Ticket_ID
+           WHERE T.Purchase_Date >= ?
+             AND T.Purchase_Date <= ?
+             AND (? IS NULL OR T.Purchase_type = ?)
+             AND (? IS NULL OR T.Payment_method = ?)
+             AND (? IS NULL
+                  OR (? = 'member' AND T.Membership_ID IS NOT NULL)
+                  OR (? = 'guest' AND T.Membership_ID IS NULL))`,
+          [
+            salesPreviousRange.start, salesPreviousRange.end,
+            salesPurchaseType, salesPurchaseType,
+            salesPaymentMethod, salesPaymentMethod,
+            salesMemberMode, salesMemberMode, salesMemberMode,
+          ],
+        )
+      : [[{ Total_Tickets: 0, Total_Revenue: 0, Total_Orders: 0 }]];
 
     const employeeRows = [];
 
@@ -438,6 +522,7 @@ function registerReportsRoutes(app, { pool }) {
       <tr>
         <td>${formatDisplayDate(row.Visit_Date)}</td>
         <td>${escapeHtml(row.Purchase_type || "N/A")}</td>
+        <td>${escapeHtml(row.Payment_method || "N/A")}</td>
         <td>${escapeHtml(row.Buyer_Type)}</td>
         <td>${escapeHtml(row.Ticket_Type)}</td>
         <td>${row.Tickets_Sold}</td>
@@ -543,6 +628,28 @@ function registerReportsRoutes(app, { pool }) {
     });
     const eventAttendanceChart = renderCapacityChart("Event Capacity", eventAttendanceRows, "event_Name", "Registered_Count", "Max_capacity");
     const tourAttendanceChart = renderCapacityChart("Tour Capacity", tourAttendanceRows, "Tour_Name", "Registered_Count", "Max_Capacity");
+
+    if (exportType === "ticket-sales") {
+      return sendCsv(res, "ticket-sales-report.csv", ["Visit Date", "Purchase Type", "Payment", "Buyer Type", "Ticket Type", "Tickets Sold", "Revenue"], ticketSalesRows.map((row) => ({
+        "Visit Date": formatDisplayDate(row.Visit_Date),
+        "Purchase Type": row.Purchase_type || "N/A",
+        Payment: row.Payment_method || "N/A",
+        "Buyer Type": row.Buyer_Type,
+        "Ticket Type": row.Ticket_Type,
+        "Tickets Sold": row.Tickets_Sold,
+        Revenue: Number(row.Revenue).toFixed(2),
+      })));
+    }
+
+    if (exportType === "financial-ledger") {
+      return sendCsv(res, "financial-ledger.csv", ["Date", "Source", "Transaction ID", "Description", "Amount"], financialTransactionRows.map((row) => ({
+        Date: formatDisplayDate(row.Transaction_Date),
+        Source: row.Source,
+        "Transaction ID": row.Transaction_ID,
+        Description: row.Description,
+        Amount: Number(row.Amount).toFixed(2),
+      })));
+    }
 
     const employeeHtml = employeePagination.items.map((row) => `
       <tr>
@@ -674,6 +781,7 @@ function registerReportsRoutes(app, { pool }) {
             <input type="date" name="consolidated_end" value="${escapeHtml(consolidatedEnd ?? '')}">
           </label>
           <button class="button" type="submit">Run Report</button>
+          <a class="button button-secondary" href="${addQueryParam(req, "export", "financial-ledger")}">Export CSV</a>
         </form>
         ${renderReportKpis([
           { label: "Grand Total", value: `$${grandTotal.toFixed(2)}` },
@@ -729,6 +837,14 @@ function registerReportsRoutes(app, { pool }) {
               <option value="Online" ${salesPurchaseType === "Online" ? "selected" : ""}>Online</option>
             </select>
           </label>
+          <label>Payment Method
+            <select name="sales_payment_method">
+              <option value="">All payment methods</option>
+              <option value="Cash" ${salesPaymentMethod === "Cash" ? "selected" : ""}>Cash</option>
+              <option value="Credit Card" ${salesPaymentMethod === "Credit Card" ? "selected" : ""}>Credit Card</option>
+              <option value="Debit Card" ${salesPaymentMethod === "Debit Card" ? "selected" : ""}>Debit Card</option>
+            </select>
+          </label>
           <label>Buyer Type
             <select name="sales_member_mode">
               <option value="">Members and Guests</option>
@@ -737,11 +853,12 @@ function registerReportsRoutes(app, { pool }) {
             </select>
           </label>
           <button class="button" type="submit">Run Report</button>
+          <a class="button button-secondary" href="${addQueryParam(req, "export", "ticket-sales")}">Export CSV</a>
         </form>
         ${renderReportKpis([
-          { label: "Orders", value: String(ticketSalesSummary.Total_Orders || 0) },
-          { label: "Tickets Sold", value: String(ticketSalesSummary.Total_Tickets || 0) },
-          { label: "Revenue", value: `$${Number(ticketSalesSummary.Total_Revenue || 0).toFixed(2)}` },
+          { label: "Orders", value: String(ticketSalesSummary.Total_Orders || 0), note: salesPreviousRange ? formatDelta(ticketSalesSummary.Total_Orders, previousTicketSalesSummary.Total_Orders, "range") : "Select dates for comparison" },
+          { label: "Tickets Sold", value: String(ticketSalesSummary.Total_Tickets || 0), note: salesPreviousRange ? formatDelta(ticketSalesSummary.Total_Tickets, previousTicketSalesSummary.Total_Tickets, "range") : "Select dates for comparison" },
+          { label: "Revenue", value: `$${Number(ticketSalesSummary.Total_Revenue || 0).toFixed(2)}`, note: salesPreviousRange ? formatDelta(ticketSalesSummary.Total_Revenue, previousTicketSalesSummary.Total_Revenue, "range") : "Select dates for comparison" },
         ])}
         ${ticketSalesChart}
         <table>
@@ -749,13 +866,14 @@ function registerReportsRoutes(app, { pool }) {
             <tr>
               <th>Visit Date</th>
               <th>Purchase Type</th>
+              <th>Payment</th>
               <th>Buyer Type</th>
               <th>Ticket Type</th>
               <th>Tickets Sold</th>
               <th>Revenue</th>
             </tr>
           </thead>
-          <tbody>${ticketSalesHtml || '<tr><td colspan="6">No ticket sales matched the selected filters.</td></tr>'}</tbody>
+          <tbody>${ticketSalesHtml || '<tr><td colspan="7">No ticket sales matched the selected filters.</td></tr>'}</tbody>
         </table>
         ${renderPager(req, "ticket_sales_page", ticketSalesPagination, "ticket-sales-report")}
       </section>

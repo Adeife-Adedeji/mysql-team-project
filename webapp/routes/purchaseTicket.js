@@ -607,6 +607,24 @@ function registerPurchaseTicketRoutes(app, { pool }) {
     const [members] = await pool.query(
       "SELECT Membership_ID, First_Name, Last_Name, Status FROM Membership ORDER BY Last_Name, First_Name"
     );
+    const selectedMember = membershipId
+      ? members.find((member) => Number(member.Membership_ID) === Number(membershipId))
+      : null;
+    const ruleTone = selectedMember
+      ? selectedMember.Status === "Active"
+        ? "success"
+        : "warning"
+      : "neutral";
+    const ruleTitle = selectedMember
+      ? selectedMember.Status === "Active"
+        ? "Member pricing applied"
+        : "Membership is not active"
+      : "Guest purchase";
+    const ruleMessage = selectedMember
+      ? selectedMember.Status === "Active"
+        ? "The selected membership is active. A 20% admission discount will be applied to new ticket lines."
+        : `Membership #${selectedMember.Membership_ID} is ${selectedMember.Status}. The order will use guest pricing until the membership is renewed.`
+      : "No membership is selected. Use member lookup only when the visitor has an active membership.";
     const today = new Date().toISOString().split("T")[0];
 
     res.send(renderPage({
@@ -617,6 +635,11 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         <section class="card dashboard-card">
           <h1>Sell Tickets</h1>
           ${renderFlash(req)}
+          <div class="admission-rule-panel admission-rule-panel--${ruleTone}">
+            <span>Pricing Rule</span>
+            <strong>${escapeHtml(ruleTitle)}</strong>
+            <p>${escapeHtml(ruleMessage)}</p>
+          </div>
           <form method="post" action="/sell-ticket/add" class="ticket-sale-form">
             <fieldset>
               <legend>Visit details</legend>

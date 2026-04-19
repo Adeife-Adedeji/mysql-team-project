@@ -33,7 +33,7 @@ function registerMembershipRoutes(app, { pool }) {
       editMember = rows[0] || null;
     }
 
-    const isSuper = req.session.user?.role === "supervisor";
+    const canDeleteMembership = ["admissions", "supervisor"].includes(req.session.user?.role);
     const membershipPagination = paginateRows(members, membershipPage);
 
     const memberRows = membershipPagination.items.map((m) => {
@@ -80,8 +80,8 @@ function registerMembershipRoutes(app, { pool }) {
           </form>`);
       }
 
-      // Hard delete: supervisor only
-      if (isSuper) {
+      // Hard delete: admissions and supervisors.
+      if (canDeleteMembership) {
         actionButtons.push(`
           <form method="post" action="/delete-membership" class="inline-form"
                 onsubmit="return confirm('Permanently delete this membership record and all linked data? This cannot be undone.');">
@@ -307,11 +307,28 @@ function registerMembershipRoutes(app, { pool }) {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      await connection.query("UPDATE users SET membership_id = NULL WHERE membership_id = ?", [idToDelete]);
+      const [[member]] = await connection.query(
+        "SELECT Membership_ID, Email FROM Membership WHERE Membership_ID = ?",
+        [idToDelete],
+      );
+
+      if (!member) {
+        throw new Error("Membership not found or already deleted.");
+      }
+
+      await connection.query(
+        `DELETE FROM users
+         WHERE role = 'user'
+           AND (membership_id = ? OR (? IS NOT NULL AND LOWER(email) = LOWER(?)))`,
+        [idToDelete, member.Email || null, member.Email || null],
+      );
       await connection.query("DELETE FROM Tour_Registration WHERE Membership_ID = ?", [idToDelete]);
       await connection.query("DELETE FROM event_registration WHERE Membership_ID = ?", [idToDelete]);
       await connection.query("UPDATE Ticket SET Membership_ID = NULL WHERE Membership_ID = ?", [idToDelete]);
-      await connection.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+      const [deleteResult] = await connection.query("DELETE FROM Membership WHERE Membership_ID = ?", [idToDelete]);
+      if (deleteResult.affectedRows === 0) {
+        throw new Error("Membership not found or already deleted.");
+      }
       await connection.commit();
     } catch (error) {
       await connection.rollback();
