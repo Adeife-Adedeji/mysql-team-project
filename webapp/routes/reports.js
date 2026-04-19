@@ -626,12 +626,21 @@ function registerReportsRoutes(app, { pool }) {
       <style>
         @media print {
           .site-header, nav, .tab-bar, form, .button, .dashboard-back-link, .pager, .portal-banner { display: none !important; }
-          .tab-panel { display: block !important; visibility: visible !important; page-break-inside: avoid; }
-          .card { box-shadow: none; border: 1px solid #ccc; margin-bottom: 2rem; }
-          h2 { page-break-before: always; margin-top: 1rem; }
-          h2:first-of-type { page-break-before: avoid; }
-          table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+          /* Hide every non-active tab panel so only the selected report prints */
+          .tab-panel[hidden] { display: none !important; }
+          .tab-panel:not([hidden]) {
+            display: block !important;
+            visibility: visible !important;
+            page-break-inside: avoid;
+          }
+          /* Drop the empty card that just wrapped the tab bar */
+          .card:has(> .tab-bar) { display: none !important; }
+          .card { box-shadow: none; border: 1px solid #ccc; margin-bottom: 1rem; page-break-inside: avoid; }
+          h1, h2, h3 { margin-top: 0.75rem; page-break-after: avoid; }
+          table { width: 100%; border-collapse: collapse; font-size: 0.85em; page-break-inside: auto; }
+          tr { page-break-inside: avoid; }
           th, td { border: 1px solid #ccc; padding: 4px 8px; }
+          @page { margin: 0.5in; }
         }
       </style>
       <section class="card narrow">

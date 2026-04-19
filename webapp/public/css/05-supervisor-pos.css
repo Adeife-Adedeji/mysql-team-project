@@ -236,7 +236,7 @@
 
 .supervisor-value-panel {
   display: grid;
-  align-content: end;
+  align-content: start;
   min-height: 22rem;
   padding: clamp(1.5rem, 4vw, 2.6rem);
   border-bottom: 3px solid var(--accent);

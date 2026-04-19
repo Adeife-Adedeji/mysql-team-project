@@ -604,12 +604,17 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       "SELECT Exhibition_ID, Exhibition_Name FROM Exhibition ORDER BY Exhibition_Name"
     );
 
-    const [members] = await pool.query(
-      "SELECT Membership_ID, First_Name, Last_Name, Status FROM Membership ORDER BY Last_Name, First_Name"
-    );
-    const selectedMember = membershipId
-      ? members.find((member) => Number(member.Membership_ID) === Number(membershipId))
-      : null;
+    // Only fetch the one member currently in the session — no full-table scan.
+    // Cashier now types the ID directly in the form (museums have too many members
+    // to scroll through a <select>), so we don't need to render every row.
+    let selectedMember = null;
+    if (membershipId) {
+      const [[row]] = await pool.query(
+        "SELECT Membership_ID, First_Name, Last_Name, Status FROM Membership WHERE Membership_ID = ?",
+        [membershipId]
+      );
+      if (row) selectedMember = row;
+    }
     const ruleTone = selectedMember
       ? selectedMember.Status === "Active"
         ? "success"
@@ -678,15 +683,16 @@ function registerPurchaseTicketRoutes(app, { pool }) {
               <label>Quantity
                 <input type="number" name="quantity" min="1" required>
               </label>
-              <label>Membership (optional)
-                <select name="membership_id" data-ticket-membership-select>
-                  <option value="">No membership / guest purchase</option>
-                  ${members.map((m) => `
-                    <option value="${m.Membership_ID}" data-status="${escapeHtml(m.Status)}" ${req.session.membershipId == m.Membership_ID ? "selected" : ""}>
-                      ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)} (${escapeHtml(m.Status)})
-                    </option>
-                  `).join("")}
-                </select>
+              <label>Member ID (optional)
+                <input
+                  type="number"
+                  name="membership_id"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="Enter member ID, or leave blank for guest"
+                  autocomplete="off"
+                  value="${req.session.membershipId ? escapeHtml(String(req.session.membershipId)) : ""}">
               </label>
               <button class="button ticket-sale-form__action" type="submit">Add Ticket</button>
             </fieldset>
