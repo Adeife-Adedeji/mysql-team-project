@@ -224,10 +224,9 @@ function registerAuthenticationRoutes(app, { pool }) {
           <div class="home-collection-search__content">
             <h2>Collection</h2>
             <p>Search the collection by artwork, artist, style, type, or period.</p>
-            <form method="get" action="/queries" class="home-collection-search__form">
-              <input type="hidden" name="view" value="artwork-search">
+            <form method="get" action="/collection-search" class="home-collection-search__form">
               <label class="sr-only" for="home-collection-query">Search collection</label>
-              <input id="home-collection-query" type="search" name="title" placeholder="Search artworks, artists, and periods">
+              <input id="home-collection-query" type="search" name="q" placeholder="Search artworks, artists, and periods">
               <button class="button" type="submit">Search Collection</button>
             </form>
           </div>

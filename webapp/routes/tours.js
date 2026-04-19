@@ -17,7 +17,7 @@ function renderTourCards(tours, membershipActive, hasMembership) {
   }
 
   return `
-    <div class="feature-grid program-grid">
+    <div class="feature-grid program-grid" id="tour-cards-grid">
       ${tours.map((tour) => {
         const asset = getExhibitionAsset(tour.Tour_Name || tour.Exhibition_Name);
         const imagePath = tour.Image_URL || asset.imagePath;
@@ -42,8 +42,18 @@ function renderTourCards(tours, membershipActive, hasMembership) {
             </form>
           `;
 
+        const isoDate = tour.Tour_Date instanceof Date
+          ? tour.Tour_Date.toISOString().slice(0, 10)
+          : String(tour.Tour_Date || "").slice(0, 10);
+        const statusKey = isRegistered ? "registered" : isFull ? "full" : "open";
+
         return `
-          <article class="feature-card">
+          <article class="feature-card"
+                   data-tour-card
+                   data-tour-date="${escapeHtml(isoDate)}"
+                   data-tour-exhibition="${escapeHtml(tour.Exhibition_Name || "")}"
+                   data-tour-language="${escapeHtml(tour.Language || "")}"
+                   data-tour-status="${statusKey}">
             <div class="feature-card__media"><img src="${imagePath}" alt="${asset.alt}"></div>
             <div class="feature-card__body event-card__body">
               <div class="event-card__content">
@@ -498,14 +508,89 @@ function registerToursRoutes(app, { pool, upload }) {
               <h2>Guided Tours</h2>
             </div>
           </div>
-          <div class="program-filter-bar" aria-label="Tour filters">
-            <span>Date</span>
-            <span>Exhibition</span>
-            <span>Language</span>
-            <span>Availability</span>
+          <div class="program-filter-bar" aria-label="Tour filters" id="tour-filter-bar">
+            <label>Date
+              <input type="date" id="tour-filter-date">
+            </label>
+            <label>Exhibition
+              <select id="tour-filter-exhibition">
+                <option value="">All exhibitions</option>
+                ${[...new Set(upcomingTours.map((t) => t.Exhibition_Name).filter(Boolean))].sort().map((name) => `
+                  <option value="${escapeHtml(name)}">${escapeHtml(name)}</option>
+                `).join("")}
+              </select>
+            </label>
+            <label>Language
+              <select id="tour-filter-language">
+                <option value="">All languages</option>
+                ${[...new Set(upcomingTours.map((t) => t.Language).filter(Boolean))].sort().map((lang) => `
+                  <option value="${escapeHtml(lang)}">${escapeHtml(lang)}</option>
+                `).join("")}
+              </select>
+            </label>
+            <label>Availability
+              <select id="tour-filter-availability">
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="registered">Registered</option>
+                <option value="full">Full</option>
+              </select>
+            </label>
+            <button type="button" class="link-button" id="tour-filter-clear">Clear filters</button>
           </div>
           ${renderFlash(req)}
           ${renderTourCards(upcomingTours, membershipActive, hasMembership)}
+          <div class="empty-state" id="tour-filter-empty" hidden>
+            <p><strong>No tours match your filters.</strong> Try clearing one or more filters.</p>
+          </div>
+          <script>
+            (function () {
+              const bar = document.getElementById("tour-filter-bar");
+              const grid = document.getElementById("tour-cards-grid");
+              if (!bar || !grid) return;
+              const dateInput = document.getElementById("tour-filter-date");
+              const exhibitionSel = document.getElementById("tour-filter-exhibition");
+              const languageSel = document.getElementById("tour-filter-language");
+              const availabilitySel = document.getElementById("tour-filter-availability");
+              const clearBtn = document.getElementById("tour-filter-clear");
+              const emptyMsg = document.getElementById("tour-filter-empty");
+              const cards = Array.from(grid.querySelectorAll("[data-tour-card]"));
+
+              function applyFilters() {
+                const wantDate = dateInput.value;
+                const wantExhibition = exhibitionSel.value;
+                const wantLanguage = languageSel.value;
+                const wantStatus = availabilitySel.value;
+                let visible = 0;
+                cards.forEach((card) => {
+                  const date = card.getAttribute("data-tour-date");
+                  const exhibition = card.getAttribute("data-tour-exhibition");
+                  const language = card.getAttribute("data-tour-language");
+                  const status = card.getAttribute("data-tour-status");
+                  const show =
+                    (!wantDate || date >= wantDate) &&
+                    (!wantExhibition || exhibition === wantExhibition) &&
+                    (!wantLanguage || language === wantLanguage) &&
+                    (!wantStatus || status === wantStatus);
+                  card.style.display = show ? "" : "none";
+                  if (show) visible++;
+                });
+                if (emptyMsg) emptyMsg.hidden = visible !== 0;
+              }
+
+              [dateInput, exhibitionSel, languageSel, availabilitySel].forEach((el) => {
+                el.addEventListener("input", applyFilters);
+                el.addEventListener("change", applyFilters);
+              });
+              clearBtn.addEventListener("click", () => {
+                dateInput.value = "";
+                exhibitionSel.value = "";
+                languageSel.value = "";
+                availabilitySel.value = "";
+                applyFilters();
+              });
+            })();
+          </script>
         </section>
         <section class="card quiet-card">
           <h2>My Tours</h2>

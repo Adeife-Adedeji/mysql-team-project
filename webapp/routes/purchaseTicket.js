@@ -230,6 +230,8 @@ function registerPurchaseTicketRoutes(app, { pool }) {
   }));
 
   app.get("/purchase-ticket", requireLogin, allowRoles(["user"]), asyncHandler(async (req, res) => {
+    const incomingFlash = req.session.flash;
+    delete req.session.flash;
     const [exhibitionImageColumns] = await pool.query(
       `SELECT 1
        FROM information_schema.COLUMNS
@@ -304,16 +306,24 @@ function registerPurchaseTicketRoutes(app, { pool }) {
           { href: "/tour-register", label: "Browse Tours", secondary: true },
         ],
       },
-      alertContent: membershipId
-        ? { type: "success", title: "Member discount ready", message: "Your active membership applies a 20% discount automatically." }
-        : {
-            type: "warning",
-            title: membershipInfo?.Status === "Cancelled" ? "Membership cancelled" : "Membership inactive",
-            message: membershipInfo?.Status === "Cancelled"
-              ? "Restore your membership to use member pricing."
-              : "Renew to unlock member pricing for admission.",
-            actions: [{ href: "/purchase-membership", label: membershipInfo ? "Open Membership" : "Join" }],
-          },
+      alertContent: [
+        ...(incomingFlash ? [{
+          type: "error",
+          title: "Ticket required to continue",
+          message: incomingFlash,
+          actions: [{ href: "#ticket-options", label: "Buy a Ticket" }],
+        }] : []),
+        membershipId
+          ? { type: "success", title: "Member discount ready", message: "Your active membership applies a 20% discount automatically." }
+          : {
+              type: "warning",
+              title: membershipInfo?.Status === "Cancelled" ? "Membership cancelled" : "Membership inactive",
+              message: membershipInfo?.Status === "Cancelled"
+                ? "Restore your membership to use member pricing."
+                : "Renew to unlock member pricing for admission.",
+              actions: [{ href: "/purchase-membership", label: membershipInfo ? "Open Membership" : "Join" }],
+            },
+      ],
       content: `
         <section class="flow-shell">
           ${renderTicketSteps(1)}

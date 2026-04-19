@@ -21,7 +21,7 @@ function renderEventBrowseCards(events, membershipActive, hasTicket, hasMembersh
   }
 
   return `
-    <div class="feature-grid program-grid">
+    <div class="feature-grid program-grid" id="event-cards-grid">
       ${events.map((ev) => {
         const asset = getExhibitionAsset(ev.event_Name, ev.Image_URL);
         const capacity = Number(ev.Max_capacity) || 0;
@@ -37,6 +37,16 @@ function renderEventBrowseCards(events, membershipActive, hasTicket, hasMembersh
           : "low";
         const isFull = spotsLeft <= 0;
         const isRegistered = ev.Already_Registered > 0;
+        const isoDate = ev.start_Date instanceof Date
+          ? ev.start_Date.toISOString().slice(0, 10)
+          : String(ev.start_Date || "").slice(0, 10);
+        const programType = ev.member_only ? "members-only" : "open";
+        const eligibility = !hasMembership
+          ? "membership-required"
+          : ev.member_only && !membershipActive
+          ? "active-required"
+          : "eligible";
+        const statusKey = isRegistered ? "registered" : isFull ? "full" : "open";
         let status = '<span class="status-badge status-badge--success">Open</span>';
         if (isRegistered) status = '<span class="status-badge status-badge--success">Registered</span>';
         else if (isFull) status = '<span class="status-badge status-badge--danger">Sold Out</span>';
@@ -59,7 +69,12 @@ function renderEventBrowseCards(events, membershipActive, hasTicket, hasMembersh
           `;
 
         return `
-          <article class="feature-card">
+          <article class="feature-card"
+                   data-event-card
+                   data-event-date="${escapeHtml(isoDate)}"
+                   data-event-program="${escapeHtml(programType)}"
+                   data-event-eligibility="${escapeHtml(eligibility)}"
+                   data-event-status="${escapeHtml(statusKey)}">
             <div class="feature-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
             <div class="feature-card__body event-card__body">
               <div class="event-card__content">
@@ -380,14 +395,87 @@ function registerEventRegistrationRoutes(app, { pool }) {
               <h2>Events</h2>
             </div>
           </div>
-          <div class="program-filter-bar" aria-label="Event filters">
-            <span>Date</span>
-            <span>Program type</span>
-            <span>Member eligibility</span>
-            <span>Availability</span>
+          <div class="program-filter-bar" aria-label="Event filters" id="event-filter-bar">
+            <label>Date
+              <input type="date" id="event-filter-date">
+            </label>
+            <label>Program type
+              <select id="event-filter-program">
+                <option value="">All programs</option>
+                <option value="open">Museum Program</option>
+                <option value="members-only">Members Only</option>
+              </select>
+            </label>
+            <label>Member eligibility
+              <select id="event-filter-eligibility">
+                <option value="">All</option>
+                <option value="eligible">Events I can register for</option>
+                <option value="membership-required">Membership required</option>
+              </select>
+            </label>
+            <label>Availability
+              <select id="event-filter-availability">
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="registered">Registered</option>
+                <option value="full">Sold Out</option>
+              </select>
+            </label>
+            <button type="button" class="link-button" id="event-filter-clear">Clear filters</button>
           </div>
           ${renderFlash(req)}
           ${renderEventBrowseCards(upcomingEvents, membershipActive, hasTicket, hasMembership)}
+          <div class="empty-state" id="event-filter-empty" hidden>
+            <p><strong>No events match your filters.</strong> Try clearing one or more filters.</p>
+          </div>
+          <script>
+            (function () {
+              const bar = document.getElementById("event-filter-bar");
+              const grid = document.getElementById("event-cards-grid");
+              if (!bar || !grid) return;
+              const dateInput = document.getElementById("event-filter-date");
+              const programSel = document.getElementById("event-filter-program");
+              const eligibilitySel = document.getElementById("event-filter-eligibility");
+              const availabilitySel = document.getElementById("event-filter-availability");
+              const clearBtn = document.getElementById("event-filter-clear");
+              const emptyMsg = document.getElementById("event-filter-empty");
+              const cards = Array.from(grid.querySelectorAll("[data-event-card]"));
+
+              function applyFilters() {
+                const wantDate = dateInput.value;
+                const wantProgram = programSel.value;
+                const wantEligibility = eligibilitySel.value;
+                const wantStatus = availabilitySel.value;
+                let visible = 0;
+                cards.forEach((card) => {
+                  const date = card.getAttribute("data-event-date");
+                  const program = card.getAttribute("data-event-program");
+                  const eligibility = card.getAttribute("data-event-eligibility");
+                  const status = card.getAttribute("data-event-status");
+                  const show =
+                    (!wantDate || date >= wantDate) &&
+                    (!wantProgram || program === wantProgram) &&
+                    (!wantEligibility || eligibility === wantEligibility) &&
+                    (!wantStatus || status === wantStatus);
+                  card.style.display = show ? "" : "none";
+                  if (show) visible++;
+                });
+                if (emptyMsg) emptyMsg.hidden = visible !== 0;
+              }
+
+              [dateInput, programSel, eligibilitySel, availabilitySel].forEach((el) => {
+                el.addEventListener("input", applyFilters);
+                el.addEventListener("change", applyFilters);
+              });
+              clearBtn.addEventListener("click", () => {
+                dateInput.value = "";
+                programSel.value = "";
+                eligibilitySel.value = "";
+                availabilitySel.value = "";
+                applyFilters();
+              });
+            })();
+          </script>
         </section>
         <section class="card quiet-card">
           <h2>My Events</h2>
@@ -454,11 +542,16 @@ function registerEventRegistrationRoutes(app, { pool }) {
       [membershipId]
     );
 
+    if (!latestTicket) {
+      setFlash(req, "A museum admission ticket is required before registering for an event. Please buy a ticket first, then return to register.");
+      return res.redirect("/purchase-ticket");
+    }
+
     try {
       await pool.query(
         `INSERT INTO event_registration (Event_ID, Membership_ID, Ticket_ID, Registration_Date)
          VALUES (?, ?, ?, CURDATE())`,
-        [eventId, membershipId, latestTicket ? latestTicket.Ticket_ID : null]
+        [eventId, membershipId, latestTicket.Ticket_ID]
       );
       setFlash(req, "Event registration confirmed.");
     } catch (err) {

@@ -75,6 +75,70 @@ function renderProductCards(items, type) {
 }
 
 function registerQueriesRoutes(app, { pool }) {
+  app.get("/collection-search", asyncHandler(async (req, res) => {
+    const q = (req.query.q || req.query.title || "").trim();
+    const hasQuery = q.length > 0;
+
+    const [artworkImageColumns] = await pool.query(
+      `SELECT 1
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'Artwork'
+         AND COLUMN_NAME = 'Image_URL'
+       LIMIT 1`
+    );
+    const hasArtworkImageColumn = artworkImageColumns.length > 0;
+
+    let results = [];
+    if (hasQuery) {
+      const [rows] = await pool.query(
+        `SELECT AW.Title, AW.Type, AW.Art_Style, AW.Time_Period,
+                ${hasArtworkImageColumn ? "AW.Image_URL" : "NULL"} AS Image_URL,
+                AR.Artist_Name
+         FROM Artwork AW
+         JOIN Artist AR ON AR.Artist_ID = AW.Artist_ID
+         WHERE AW.Title LIKE CONCAT('%', ?, '%')
+            OR AR.Artist_Name LIKE CONCAT('%', ?, '%')
+            OR AW.Art_Style LIKE CONCAT('%', ?, '%')
+            OR AW.Type LIKE CONCAT('%', ?, '%')
+            OR AW.Time_Period LIKE CONCAT('%', ?, '%')
+         ORDER BY AR.Artist_Name, AW.Title
+         LIMIT 50`,
+        [q, q, q, q, q]
+      );
+      results = rows;
+    }
+
+    const resultsBlock = !hasQuery
+      ? '<div class="empty-state"><p>Enter a search term above to explore the collection.</p></div>'
+      : renderArtworkResults(results);
+
+    res.send(renderPage({
+      title: "Collection Search",
+      user: req.session.user,
+      currentPath: req.path,
+      hero: {
+        eyebrow: "Collection",
+        title: "Search the Collection",
+        description: "Find artwork by title, artist, style, type, or period.",
+        imagePath: "/images/the-farnese-hours.jpg",
+        alt: "Museum collection artwork.",
+      },
+      content: `
+        <section class="card narrow">
+          <form method="get" action="/collection-search" class="form-grid">
+            <label>Search
+              <input type="search" name="q" value="${escapeHtml(q)}" placeholder="Search artworks, artists, styles, types, or periods" autofocus>
+            </label>
+            <button class="button" type="submit">Search Collection</button>
+          </form>
+          ${hasQuery ? `<p class="muted">${results.length} result${results.length === 1 ? "" : "s"} for "${escapeHtml(q)}".</p>` : ""}
+          ${resultsBlock}
+        </section>
+      `,
+    }));
+  }));
+
   app.get("/queries", requireLogin, asyncHandler(async (req, res) => {
     const user = req.session.user;
     const isSuper = user.role === "supervisor";
