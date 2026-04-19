@@ -45,11 +45,35 @@ chmod +x setup_full_database.sh
 ./setup_full_database.sh
 ```
 
-The scripts will ask for the MySQL host, port, username, password, and database name. The expected database name for the web app is:
+The scripts will ask for the MySQL host,, port, username, password, and database name. The expected database name for the web app is:
 
 ```text
 museumdb
 ```
+A visual example of how to set up inside the batch file:
+
+```text
+=========================================
+  Museum DB - FULL System Setup
+=========================================
+
+This drops and fully rebuilds museumdb from scratch.
+(All schema files + all insert files will be run)
+
+Where do you want to connect?
+  [1] Local
+  [2] Hosted
+
+Enter 1 or 2: 1
+Enter MySQL host: localhost
+Enter MySQL port: 3306
+Enter MySQL username: your_username_here(usually default as 'root')
+Enter MySQL password: your_password_here
+Enter database name: museumdb
+
+Connecting to: localhost:3306 as root on database museumdb
+```
+
 
 If the Windows script cannot find MySQL, update the `MYSQL` path inside `setup_full_database(RUN THIS ).bat` to match the local MySQL installation.
 
