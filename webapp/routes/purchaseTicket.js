@@ -307,12 +307,17 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         ],
       },
       alertContent: [
-        ...(incomingFlash ? [{
-          type: "error",
-          title: "Ticket required to continue",
-          message: incomingFlash,
-          actions: [{ href: "#ticket-options", label: "Buy a Ticket" }],
-        }] : []),
+        ...(incomingFlash 
+          ? incomingFlash.startsWith("SUCCESS:") ? [{
+            type: "success",
+            title: "Ticket purchased successfully",
+            message: incomingFlash.replace("SUCCESS:", ""),
+          }] : [{
+            type: "error",
+            title: "Ticket required to continue",
+            message: incomingFlash,
+            actions: [{ href: "#ticket-options", label: "Buy a Ticket" }],
+          }] : []),
         membershipId
           ? { type: "success", title: "Member discount ready", message: "Your active membership applies a 20% discount automatically." }
           : {
@@ -554,7 +559,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
       );
 
       await connection.commit();
-      setFlash(req, `Ticket purchase completed. Confirmation #${ticketResult.insertId}. Total: $${(finalPrice * qty).toFixed(2)}`);
+      setFlash(req, `SUCCESS:Ticket purchase completed. Confirmation #${ticketResult.insertId}. Total: $${(finalPrice * qty).toFixed(2)}`);
     } catch (error) {
       await connection.rollback();
       throw error;

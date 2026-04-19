@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS Ticket (
     Last_Name VARCHAR(30),
     First_Name VARCHAR(30),
     Phone_number VARCHAR(10),
-    Email VARCHAR(50) UNIQUE,
+    Email VARCHAR(50),
     Payment_method VARCHAR(30),
     Membership_ID INT NULL,
     Created_by VARCHAR(30),
