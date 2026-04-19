@@ -114,14 +114,6 @@ Seeded roles include:
 - Cafe Staff
 - Marketing/Supervisor
 
-## Membership Lifecycle & Logic
-
-The application implements a robust membership system with automated lifecycle management:
-
-* **Automatic Expiration:** A MySQL Event (`evt_expire_memberships`) runs every 24 hours to transition members from 'Active' to 'Expired' if their `Date_Exited` has passed.
-* **Auto-Calculated Terms:** When a new member is added, a trigger automatically sets their `Date_Exited` to exactly one year from their `Date_Joined` and initializes their status as 'Active'.
-* **Transaction Blocking:** Database triggers proactively block any ticket purchases for accounts with 'Expired' or 'Canceled' status. If a blocked transaction is attempted, the system raises a MySQL error (SQLSTATE '45000'), which the web application captures and logs for supervisor review.
-
 ## Data Managed By The Application
 
 The database application supports adding, editing, deleting, searching, and reporting on the following museum data:
@@ -150,6 +142,14 @@ The database application supports adding, editing, deleting, searching, and repo
 | `admissions` | Admissions access for memberships, ticket selling, ticket reports, and membership reports. |
 | `giftshop` | Gift shop access for inventory, sales, sale line items, and gift shop reports. |
 | `cafe` | Cafe access for food inventory, cafe orders, sale line items, and cafe reports. |
+
+## Membership Lifecycle & Logic
+
+The application implements a robust membership system with automated lifecycle management:
+
+* **Automatic Expiration:** A MySQL Event (`evt_expire_memberships`) runs every 24 hours to transition members from 'Active' to 'Expired' if their `Date_Exited` has passed.
+* **Auto-Calculated Terms:** When a new member is added, a trigger automatically sets their `Date_Exited` to exactly one year from their `Date_Joined` and initializes their status as 'Active'.
+* **Transaction Blocking:** Database triggers proactively block any ticket purchases for accounts with 'Expired' or 'Canceled' status. If a blocked transaction is attempted, the system raises a MySQL error (SQLSTATE '45000'), which the web application captures and logs for supervisor review.
 
 ## Trigger Constraints
 
