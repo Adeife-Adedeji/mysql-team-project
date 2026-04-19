@@ -617,56 +617,65 @@ function registerPurchaseTicketRoutes(app, { pool }) {
         <section class="card dashboard-card">
           <h1>Sell Tickets</h1>
           ${renderFlash(req)}
-          <form method="post" action="/sell-ticket/add" class="form-grid">
-            <label>Membership (optional)
-              <select name="membership_id" data-ticket-membership-select>
-                <option value="">No membership / guest purchase</option>
-                ${members.map((m) => `
-                  <option value="${m.Membership_ID}" data-status="${escapeHtml(m.Status)}" ${req.session.membershipId == m.Membership_ID ? "selected" : ""}>
-                    ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)} (${escapeHtml(m.Status)})
-                  </option>
-                `).join("")}
-              </select>
-            </label>
-            <label>Visit Date
-              <input type="date" name="visit_date" required min="${today}">
-            </label>
-            <label>Purchase Type
-              <select name="purchase_type" required>
-                <option value="In-Person" ${req.session.purchaseType === "In-Person" ? "selected" : ""}>In-Person</option>
-                <option value="Walk-up" ${req.session.purchaseType === "Walk-up" ? "selected" : ""}>Walk-up</option>
-                <option value="Online" ${req.session.purchaseType === "Online" ? "selected" : ""}>Online</option>
-              </select>
-            </label>
-            <label>Ticket Type
-              <select name="ticket_type_id" required data-ticket-type-select>
-                ${tickets.map((t) => `
-                  <option value="${t.Ticket_Type_ID}" data-name="${escapeHtml(t.Name)}" data-price="${t.Price}">
-                    ${t.Name} ($${discount > 0 ? (t.Price * 0.8).toFixed(2) : t.Price.toFixed(2)})
-                  </option>
-                `).join("")}
-              </select>
-            </label>
-            <label>Quantity
-              <input type="number" name="quantity" min="1" required>
-            </label>
-            <label>Exhibition
-              <select name="exhibition_id">
-                <option value="">General Admission</option>
-                ${exhibitions.map((ex) => `
-                  <option value="${ex.Exhibition_ID}">
-                    ${escapeHtml(ex.Exhibition_Name)}
-                  </option>
-                `).join("")}
-              </select>
-            </label>
-            <label>Visitor Email (optional)
-              <input type="email" name="email">
-            </label>
-            <label>Visitor Phone (optional)
-              <input type="text" name="phone">
-            </label>
-            <button class="button" type="submit">Add Ticket</button>
+          <form method="post" action="/sell-ticket/add" class="ticket-sale-form">
+            <fieldset>
+              <legend>Visit details</legend>
+              <label>Visit Date
+                <input type="date" name="visit_date" required min="${today}">
+              </label>
+              <label>Purchase Type
+                <select name="purchase_type" required>
+                  <option value="In-Person" ${req.session.purchaseType === "In-Person" ? "selected" : ""}>In-Person</option>
+                  <option value="Walk-up" ${req.session.purchaseType === "Walk-up" ? "selected" : ""}>Walk-up</option>
+                  <option value="Online" ${req.session.purchaseType === "Online" ? "selected" : ""}>Online</option>
+                </select>
+              </label>
+              <label>Exhibition
+                <select name="exhibition_id">
+                  <option value="">General Admission</option>
+                  ${exhibitions.map((ex) => `
+                    <option value="${ex.Exhibition_ID}">
+                      ${escapeHtml(ex.Exhibition_Name)}
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>Ticket details</legend>
+              <label>Ticket Type
+                <select name="ticket_type_id" required data-ticket-type-select>
+                  ${tickets.map((t) => `
+                    <option value="${t.Ticket_Type_ID}" data-name="${escapeHtml(t.Name)}" data-price="${t.Price}">
+                      ${t.Name} ($${discount > 0 ? (t.Price * 0.8).toFixed(2) : t.Price.toFixed(2)})
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+              <label>Quantity
+                <input type="number" name="quantity" min="1" required>
+              </label>
+              <label>Membership (optional)
+                <select name="membership_id" data-ticket-membership-select>
+                  <option value="">No membership / guest purchase</option>
+                  ${members.map((m) => `
+                    <option value="${m.Membership_ID}" data-status="${escapeHtml(m.Status)}" ${req.session.membershipId == m.Membership_ID ? "selected" : ""}>
+                      ID: ${m.Membership_ID} - ${escapeHtml(m.First_Name)} ${escapeHtml(m.Last_Name)} (${escapeHtml(m.Status)})
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+              <button class="button ticket-sale-form__action" type="submit">Add Ticket</button>
+            </fieldset>
+            <fieldset>
+              <legend>Guest details</legend>
+              <label>Visitor Email (optional)
+                <input type="email" name="email">
+              </label>
+              <label>Visitor Phone (optional)
+                <input type="text" name="phone">
+              </label>
+            </fieldset>
           </form>
         </section>
         <section class="card dashboard-card">
@@ -676,7 +685,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
             </div>
             <span class="status-badge status-badge--${discount > 0 ? "success" : "neutral"}">${discount > 0 ? "20% member discount" : "Guest pricing"}</span>
           </div>
-          ${cart.length === 0 ? "<div class=\"empty-state\"><p>No tickets added yet.</p></div>" : `
+          ${cart.length === 0 ? "<div class=\"empty-state\"><p><strong>No tickets added yet</strong></p><p>Select a ticket type, quantity, and visit date to begin.</p></div>" : `
             <table>
               <thead>
                 <tr>
@@ -837,7 +846,7 @@ function registerPurchaseTicketRoutes(app, { pool }) {
               <h2>Ticket Lines</h2>
             </div>
           </div>
-          <table>
+          <table class="ticket-sales-table">
             <thead>
               <tr>
                 <th>${sortLink("Order", "purchase_date")}</th>
@@ -862,9 +871,9 @@ function registerPurchaseTicketRoutes(app, { pool }) {
                   <td>${escapeHtml(line.Purchase_type || "N/A")}</td>
                   <td>${escapeHtml(line.Payment_method || "N/A")}</td>
                   <td>${escapeHtml(line.Exhibition_Name || "General Admission")}</td>
-                  <td>${Number(line.Quantity || 0)}</td>
-                  <td>$${Number(line.Price_per_ticket || 0).toFixed(2)}</td>
-                  <td>$${Number(line.Line_Total || 0).toFixed(2)}</td>
+                  <td class="numeric-cell">${Number(line.Quantity || 0)}</td>
+                  <td class="numeric-cell">$${Number(line.Price_per_ticket || 0).toFixed(2)}</td>
+                  <td class="numeric-cell">$${Number(line.Line_Total || 0).toFixed(2)}</td>
                 </tr>
               `).join("") || '<tr><td colspan="10">No ticket sales match the current filters.</td></tr>'}
             </tbody>

@@ -164,7 +164,7 @@ function renderSupervisorDashboard({
         <section class="supervisor-masthead">
           <div>
             <p class="eyebrow">Supervisor Dashboard</p>
-            <h1>Institutional operations overview</h1>
+            <h1>Operations overview</h1>
             <p>Monitor collection care, admissions activity, commercial revenue, staffing, and business rule alerts from one executive workspace.</p>
           </div>
           <div class="supervisor-masthead__meta">
@@ -220,8 +220,7 @@ function renderSupervisorDashboard({
         </section>
 
         <section class="supervisor-section-heading">
-          <p>Institutional Management</p>
-          <span>Live operational snapshot</span>
+          <p>Operational snapshot</p>
         </section>
 
         <section class="supervisor-card-grid" aria-label="Operational indicators">
@@ -339,6 +338,11 @@ function registerDashboardRoutes(app, { pool }) {
       const hasTicket = ticketCount > 0;
       const needsRenewal = membershipInfo && membershipInfo.Status !== "Active" && membershipInfo.Status !== "Cancelled";
       const firstName = escapeHtml(user.name.split(" ")[0]);
+      const memberBenefitLine = hasMembership
+        ? hasTicket
+          ? `${ticketCount} active admission benefit${ticketCount === 1 ? "" : "s"}`
+          : "Eligible for member event pricing"
+        : "Join for admission and event benefits";
       const memberActions = hasMembership
         ? hasTicket
           ? [
@@ -382,6 +386,7 @@ function registerDashboardRoutes(app, { pool }) {
           imagePath: "/images/museum3.jpg",
           alt: "Museum member gallery.",
           actions: memberActions,
+          compact: true,
         },
         content: `
           <section class="member-dashboard-layout">
@@ -410,6 +415,7 @@ function registerDashboardRoutes(app, { pool }) {
             </div>
             <aside class="member-status-rail">
               <h2>${hasMembership ? "Membership" : "Account"}</h2>
+              <p class="member-status-rail__note">${escapeHtml(memberBenefitLine)}</p>
               ${renderFlash(req)}
               <dl>
                 <div><dt>Status</dt><dd><span class="status-badge status-badge--${hasMembership ? "success" : membershipInfo ? "warning" : "neutral"}">${escapeHtml(memberStatus)}</span></dd></div>
@@ -427,6 +433,11 @@ function registerDashboardRoutes(app, { pool }) {
     }
 
     if (isAdmissions(user)) {
+      const [[ticketSalesTodayRow]] = await pool.query(
+        "SELECT COALESCE(SUM(tl.Quantity), 0) AS value FROM Ticket t JOIN ticket_line tl ON t.Ticket_ID = tl.Ticket_ID WHERE t.Purchase_Date = CURDATE()"
+      );
+      const ticketsSoldToday = Number(ticketSalesTodayRow?.value || 0);
+
       return res.send(renderPage({
         title: "Admissions Overview",
         user,
@@ -437,6 +448,7 @@ function registerDashboardRoutes(app, { pool }) {
           description: "",
           imagePath: getRoleAsset("admissions").imagePath,
           alt: getRoleAsset("admissions").alt,
+          compact: true,
           actions: [
             { href: "/sell-ticket", label: "Sell Tickets" },
             { href: "/add-membership", label: "Manage Memberships", secondary: true },
@@ -449,7 +461,7 @@ function registerDashboardRoutes(app, { pool }) {
             ${renderFlash(req)}
           </section>
           ${renderActionCards([
-            { eyebrow: "Tickets", title: "Ticket Sales", description: "", href: "/sell-ticket", linkLabel: "Open Register", imagePath: "/images/admission.jpg", alt: "Museum admissions view." },
+            { eyebrow: "Primary Task", title: "Ticket Sales", description: `${ticketsSoldToday} sold today`, href: "/sell-ticket", linkLabel: "Sell Tickets", imagePath: "/images/admission.jpg", alt: "Museum admissions view." },
             { eyebrow: "Membership", title: "Memberships", description: "", href: "/add-membership", linkLabel: "Open Memberships", imagePath: "/images/visitor-services.jpg", alt: "Museum member services area." },
             { eyebrow: "Reporting", title: "Sales Report", description: "", href: "/ticket-sales", linkLabel: "Open Sales Report", imagePath: "/images/marketing.jpg", alt: "Museum visitor traffic." },
           ])}
@@ -468,6 +480,7 @@ function registerDashboardRoutes(app, { pool }) {
           description: "",
           imagePath: getRoleAsset("giftshop").imagePath,
           alt: getRoleAsset("giftshop").alt,
+          compact: true,
           actions: [
             { href: "/gift-order", label: "New Shop Order" },
             { href: "/add-item", label: "Inventory", secondary: true },
@@ -499,6 +512,7 @@ function registerDashboardRoutes(app, { pool }) {
           description: "",
           imagePath: getRoleAsset("cafe").imagePath,
           alt: getRoleAsset("cafe").alt,
+          compact: true,
           actions: [
             { href: "/order", label: "New Cafe Order" },
             { href: "/add-food", label: "Inventory", secondary: true },
@@ -530,6 +544,7 @@ function registerDashboardRoutes(app, { pool }) {
           description: "",
           imagePath: getRoleAsset("curator").imagePath,
           alt: getRoleAsset("curator").alt,
+          compact: true,
           actions: [
             { href: "/queries", label: "Search Collection" },
             { href: "/add-artwork", label: "Manage Artwork", secondary: true },
@@ -560,6 +575,7 @@ function registerDashboardRoutes(app, { pool }) {
           title: "Staff",
           imagePath: getRoleAsset("employee").imagePath,
           alt: getRoleAsset("employee").alt,
+          compact: true,
           actions: [
             { href: "/sell-ticket", label: "Ticket Register" },
             { href: "/gift-order", label: "Gift Shop POS", secondary: true },

@@ -263,56 +263,65 @@ function registerLoansRoutes(app, { pool }) {
       content: `
       <section class="card narrow">
         <h1>Record Artwork Loan</h1>
-        <p class="dashboard-note">
-          <strong>Outgoing</strong> = we lend our artwork to another institution.<br>
-          <strong>Incoming</strong> = we borrow artwork from another institution.<br>
-          The database will block assigning an outgoing-loaned artwork to an exhibition.
-        </p>
+        <p class="dashboard-note">Create incoming or outgoing loan records for collection movement.</p>
+        <div class="info-callout">
+          <strong>Loan rule</strong>
+          <span>Outgoing loans cannot be assigned to an exhibition while the loan is active.</span>
+        </div>
         ${renderFlash(req)}
-        <form method="post" action="/artwork-loans" class="form-grid">
-          <label>Artwork
-            <select name="artwork_id" required>
-              <option value="">— Select artwork —</option>
-              ${artworks.map((a) =>
-                `<option value="${a.Artwork_ID}">${escapeHtml(a.Title)} — ${escapeHtml(a.Artist_Name)}</option>`
-              ).join("")}
-            </select>
-          </label>
-          <label>Institution
-            <select name="institution_id" required>
-              <option value="">— Select institution —</option>
-              ${institutions.map((i) =>
-                `<option value="${i.Institution_ID}">${escapeHtml(i.Institution_Name)}</option>`
-              ).join("")}
-            </select>
-          </label>
-          <label>Loan Type
-            <select name="loan_type" required>
-              <option value="Outgoing">Outgoing (we lend it out)</option>
-              <option value="Incoming">Incoming (we receive it)</option>
-            </select>
-          </label>
-          <label>Start Date
-            <input type="date" name="start_date" required>
-          </label>
-          <label>End Date
-            <input type="date" name="end_date" required>
-          </label>
-          <label>Insurance Value ($)
-            <input type="number" step="0.01" min="0" name="insurance_value" placeholder="e.g. 250000.00">
-          </label>
-          <label>Approved By (Employee)
-            <select name="approved_by">
-              <option value="">— Optional —</option>
-              ${employees.map((e) =>
-                `<option value="${e.Employee_ID}">${escapeHtml(e.Full_Name)}</option>`
-              ).join("")}
-            </select>
-          </label>
-          <label>Notes
-            <textarea name="notes" rows="2" placeholder="Shipping details, special conditions, etc."></textarea>
-          </label>
-          <button class="button" type="submit">Record Loan</button>
+        <form method="post" action="/artwork-loans" class="loan-form">
+          <fieldset>
+            <legend>Artwork and institution</legend>
+            <label>Artwork
+              <select name="artwork_id" required>
+                <option value="">— Select artwork —</option>
+                ${artworks.map((a) =>
+                  `<option value="${a.Artwork_ID}">${escapeHtml(a.Title)} — ${escapeHtml(a.Artist_Name)}</option>`
+                ).join("")}
+              </select>
+            </label>
+            <label>Institution
+              <select name="institution_id" required>
+                <option value="">— Select institution —</option>
+                ${institutions.map((i) =>
+                  `<option value="${i.Institution_ID}">${escapeHtml(i.Institution_Name)}</option>`
+                ).join("")}
+              </select>
+            </label>
+            <label>Loan Type
+              <select name="loan_type" required>
+                <option value="Outgoing">Outgoing (we lend it out)</option>
+                <option value="Incoming">Incoming (we receive it)</option>
+              </select>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Dates and value</legend>
+            <label>Start Date
+              <input type="date" name="start_date" required>
+            </label>
+            <label>End Date
+              <input type="date" name="end_date" required>
+            </label>
+            <label>Insurance Value ($)
+              <input type="number" step="0.01" min="0" name="insurance_value" placeholder="e.g. 250000.00">
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Approvals and notes</legend>
+            <label>Approved By (Employee)
+              <select name="approved_by">
+                <option value="">— Optional —</option>
+                ${employees.map((e) =>
+                  `<option value="${e.Employee_ID}">${escapeHtml(e.Full_Name)}</option>`
+                ).join("")}
+              </select>
+            </label>
+            <label>Notes
+              <textarea name="notes" rows="2" placeholder="Shipping details, special conditions, etc."></textarea>
+            </label>
+            <button class="button" type="submit">Record Loan</button>
+          </fieldset>
         </form>
         <p><a class="button button-secondary" href="/institutions">Manage Institutions</a></p>
       </section>

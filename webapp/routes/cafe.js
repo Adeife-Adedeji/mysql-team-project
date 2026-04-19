@@ -597,8 +597,10 @@ function registerCafeRoutes(app, { pool }) {
       `SELECT Food_ID, Food_Name, ${foodHasTypeColumn ? "Type" : "NULL"} AS Type, Food_Price,
               ${foodHasStockColumn ? "Stock_Quantity" : "NULL"} AS Stock_Quantity,
               ${foodHasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL
-       FROM Food`
+       FROM Food
+       ORDER BY ${foodHasStockColumn ? "Stock_Quantity = 0, " : ""}Food_Name`
     );
+    const categories = Array.from(new Set(foods.map((food) => food.Type || "Cafe").filter(Boolean))).sort();
     const cart = req.session.cart || [];
     const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
     const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
@@ -627,6 +629,15 @@ function registerCafeRoutes(app, { pool }) {
             </div>
             <span class="status-badge status-badge--neutral">${cartCount} item${cartCount === 1 ? "" : "s"}</span>
           </div>
+          <div class="pos-filter-bar" data-pos-filters>
+            <label>Search
+              <input type="search" placeholder="Find item" data-pos-search>
+            </label>
+            <div class="pos-category-tabs" aria-label="Cafe categories">
+              <button class="tab-button is-active" type="button" data-pos-category="all">All</button>
+              ${categories.map((category) => `<button class="tab-button" type="button" data-pos-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}
+            </div>
+          </div>
           <div class="product-grid">
             ${foods.map((food) => {
               const asset = getCafeAsset(food.Food_Name, food.Type, food.Image_URL);
@@ -645,7 +656,7 @@ function registerCafeRoutes(app, { pool }) {
                     ? `${food.Stock_Quantity} left`
                     : "In stock";
               return `
-                <article class="product-card pos-product-card">
+                <article class="product-card pos-product-card ${foodHasStockColumn && food.Stock_Quantity === 0 ? "pos-product-card--unavailable" : ""}" data-pos-product data-pos-name="${escapeHtml(food.Food_Name)}" data-pos-category="${escapeHtml(food.Type || "Cafe")}">
                   <div class="product-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
                   <div class="product-card__body">
                     <h2>${escapeHtml(food.Food_Name)}</h2>
@@ -673,7 +684,7 @@ function registerCafeRoutes(app, { pool }) {
             <h2>Current Order</h2>
           </div>
           ${cart.length === 0
-            ? '<div class="empty-state"><p>No items in cart.</p></div>'
+            ? '<div class="empty-state"><p><strong>No items in cart</strong></p><p>Search or choose a category, then add items from the product grid.</p></div>'
             : `<ul class="order-ledger__items">${cartRows}</ul>
                <div class="order-ledger__edit">
                 ${cart.map(item => `

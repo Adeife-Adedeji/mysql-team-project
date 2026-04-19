@@ -217,6 +217,7 @@
       initCarousel();
       initHeroVideoToggle();
       initRecordCards(root);
+      initPosFilters();
     };
 
     const loadSupervisorPage = async (url, pushState = true) => {
@@ -416,6 +417,42 @@
 
     membershipSelect.addEventListener("change", refreshPrices);
     refreshPrices();
+  };
+
+  const initPosFilters = () => {
+    const filterBar = document.querySelector("[data-pos-filters]");
+    const products = Array.from(document.querySelectorAll("[data-pos-product]"));
+
+    if (!filterBar || !products.length) {
+      return;
+    }
+
+    const search = filterBar.querySelector("[data-pos-search]");
+    const categoryButtons = Array.from(filterBar.querySelectorAll("[data-pos-category]"));
+    let activeCategory = "all";
+
+    const applyFilters = () => {
+      const query = normalizeText(search?.value || "");
+
+      products.forEach((product) => {
+        const name = normalizeText(product.dataset.posName);
+        const category = normalizeText(product.dataset.posCategory);
+        const matchesSearch = !query || name.includes(query);
+        const matchesCategory = activeCategory === "all" || category === activeCategory;
+        product.hidden = !(matchesSearch && matchesCategory);
+      });
+    };
+
+    categoryButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeCategory = normalizeText(button.dataset.posCategory || "all");
+        categoryButtons.forEach((candidate) => candidate.classList.toggle("is-active", candidate === button));
+        applyFilters();
+      });
+    });
+
+    search?.addEventListener("input", applyFilters);
+    applyFilters();
   };
 
   const initTypewriter = () => {
@@ -799,6 +836,7 @@
   initFlashDismiss();
   initDateRangeValidation();
   initTicketPricing();
+  initPosFilters();
   initTypewriter();
   initBackToTop();
   initAjaxPagination();

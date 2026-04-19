@@ -1262,3 +1262,425 @@ body.page-staff-entry .account-entry-grid {
     display: grid;
   }
 }
+
+/* Workflow density pass: internal tools should start faster and scroll cleanly. */
+.site-header,
+body.page-home .site-header {
+  position: sticky;
+  top: 0;
+  width: 100%;
+}
+
+.site-header__inner {
+  width: min(1680px, 100%);
+  margin: 0 auto;
+}
+
+.supervisor-main--subpage > .page-alert-overlay {
+  position: static;
+  margin-bottom: 0;
+}
+
+.media-hero--compact {
+  min-height: clamp(22rem, 46svh, 32rem);
+}
+
+.media-hero--compact .media-hero__content {
+  padding-top: clamp(4rem, 9svh, 7rem);
+  padding-bottom: clamp(1.5rem, 4vw, 3rem);
+}
+
+body.theme-member .container > .media-hero.media-hero--compact {
+  min-height: clamp(28rem, 66svh, 38rem);
+}
+
+body.theme-member .container > .media-hero.media-hero--compact .media-hero__content {
+  padding-top: clamp(1.5rem, 4svh, 3.5rem);
+  padding-bottom: clamp(1.6rem, 5svh, 3.8rem);
+}
+
+.supervisor-main--subpage {
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.supervisor-main--subpage > .card:first-child h1,
+.reports-toolbar h1,
+.collection-work-header h1 {
+  max-width: none;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.35rem, 4.5vw, 4.6rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.reports-toolbar {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-block: 1.15rem;
+}
+
+.reports-toolbar__title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.reports-tab-bar {
+  gap: 0.35rem;
+}
+
+.reports-tab-bar .tab-button {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.68rem;
+}
+
+.report-panel {
+  padding-top: 1.15rem;
+}
+
+.report-panel h2,
+.query-tab-shell + .tab-panel h2 {
+  margin-bottom: 0.75rem;
+}
+
+.report-filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.report-filter-row label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.report-filter-row .button {
+  align-self: end;
+}
+
+.report-kpi-grid {
+  gap: 0.75rem;
+}
+
+.report-chart-card h3,
+.report-panel table th {
+  font-family: var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.report-chart-card h3 {
+  font-size: 0.92rem;
+}
+
+.report-panel table th,
+.report-panel table td {
+  padding-block: 0.62rem;
+}
+
+.ticket-sale-form,
+.loan-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.ticket-sale-form fieldset,
+.loan-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+  align-items: end;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid rgba(23, 20, 18, 0.12);
+  background: rgba(255, 253, 249, 0.5);
+}
+
+.ticket-sale-form legend,
+.loan-form legend {
+  padding: 0 0.35rem;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ticket-sale-form label,
+.loan-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.ticket-sale-form__action,
+.loan-form fieldset:last-child .button {
+  justify-self: end;
+}
+
+.ticket-sales-filters {
+  margin-bottom: 1rem;
+}
+
+.ticket-sales-filters + .summary-grid .summary-card {
+  padding: 1.15rem;
+}
+
+.ticket-sales-filters + .summary-grid .summary-card strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  line-height: 0.95;
+}
+
+.ticket-sales-table th:nth-last-child(-n + 3),
+.ticket-sales-table .numeric-cell {
+  text-align: right;
+}
+
+.pos-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+  gap: 1rem;
+}
+
+.pos-filter-bar {
+  position: sticky;
+  top: 5.25rem;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(23, 20, 18, 0.12);
+  background: rgba(255, 253, 249, 0.96);
+}
+
+.pos-filter-bar label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pos-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pos-category-tabs .tab-button {
+  min-height: 2.15rem;
+  padding: 0.42rem 0.62rem;
+  font-size: 0.66rem;
+}
+
+.pos-products .product-grid {
+  grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+  gap: 0.8rem;
+}
+
+.pos-product-card {
+  grid-template-rows: 8.5rem 1fr;
+}
+
+.pos-product-card .product-card__media img {
+  min-height: 8.5rem;
+}
+
+.pos-product-card .product-card__body {
+  gap: 0.65rem;
+  padding: 0.85rem;
+}
+
+.pos-product-card--unavailable {
+  opacity: 0.48;
+  filter: saturate(0.4);
+}
+
+.pos-add-form {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 0.7fr) minmax(5rem, auto);
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.pos-add-form label {
+  gap: 0.3rem;
+}
+
+.pos-add-form input {
+  min-height: 2.35rem;
+}
+
+.order-ledger {
+  top: 5.75rem;
+  min-height: calc(100svh - 6.5rem);
+}
+
+body.theme-admissions .media-hero {
+  min-height: clamp(22rem, 46svh, 32rem);
+}
+
+body.theme-admissions .feature-grid {
+  grid-template-columns: minmax(20rem, 1.35fr) repeat(2, minmax(14rem, 0.85fr));
+}
+
+body.theme-admissions .feature-card:first-child .feature-card__link {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+body.theme-curator .feature-grid,
+body.theme-cafe .feature-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.theme-curator .feature-card:first-child,
+body.theme-cafe .feature-card:nth-child(2) {
+  grid-row: auto;
+}
+
+body.theme-curator .feature-card:first-child .feature-card__media {
+  min-height: 0;
+}
+
+.dashboard-card .dashboard-details {
+  gap: 0.5rem 1rem;
+}
+
+.dashboard-card .dashboard-details div {
+  padding-block: 0.55rem;
+}
+
+.member-dashboard-layout {
+  margin-top: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.member-status-rail__note {
+  margin: -0.35rem 0 0;
+  color: var(--accent-deep);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.collection-work-header {
+  margin-bottom: 0.75rem;
+  padding-block: 1.1rem;
+}
+
+.query-tab-shell {
+  margin-bottom: 0.75rem;
+  padding: 0.8rem;
+}
+
+.query-tab-shell .tab-button {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.68rem;
+}
+
+.query-tab-shell + .tab-panel form {
+  margin-bottom: 1rem;
+}
+
+.query-tab-shell + .tab-panel table td {
+  padding-block: 0.7rem;
+}
+
+.query-tab-shell + .tab-panel td {
+  line-height: 1.35;
+}
+
+.query-tab-shell + .tab-panel td strong,
+.query-tab-shell + .tab-panel td span {
+  display: block;
+}
+
+.info-callout {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 0.3rem solid var(--accent);
+  background: rgba(23, 20, 18, 0.045);
+}
+
+.info-callout strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.info-callout span {
+  color: var(--muted);
+}
+
+.record-card__actions {
+  padding: 0.85rem 1rem 1rem;
+}
+
+.supervisor-value-panel {
+  min-height: 18rem;
+}
+
+.supervisor-overview-grid,
+.supervisor-card-grid,
+.supervisor-lower-grid {
+  margin-bottom: 1.35rem;
+}
+
+.supervisor-revenue-panel {
+  background: #241f1c;
+}
+
+.supervisor-collection-panel {
+  border-top: 3px solid var(--accent);
+}
+
+@media (max-width: 1180px) {
+  .pos-filter-bar,
+  .order-ledger {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .report-filter-row,
+  .pos-filter-bar,
+  .pos-add-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-sale-form fieldset,
+  .loan-form fieldset,
+  body.theme-admissions .feature-grid,
+  body.theme-curator .feature-grid,
+  body.theme-cafe .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}

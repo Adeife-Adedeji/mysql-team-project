@@ -326,20 +326,25 @@ function registerQueriesRoutes(app, { pool }) {
       title: "Collection Search",
       user: req.session.user,
       currentPath: req.path,
-      hero: {
+      hero: isEmp || isSuper ? null : {
         eyebrow: "Collection Search",
         title: "Collection",
         description: "",
         imagePath: "/images/the-farnese-hours.jpg",
         alt: "Museum collection artwork.",
       },
-      featureCards: [
+      featureCards: isEmp || isSuper ? null : [
         { eyebrow: "Collections", title: "Artwork", description: "", href: "/queries?view=artwork-status#query-tabs", linkLabel: "View Artwork", imagePath: "/images/allegory.jpg", alt: "Artwork search card." },
         { eyebrow: "Exhibitions", title: "Exhibitions", description: "", href: "/queries?view=exhibition-dates#query-tabs", linkLabel: "View Exhibitions", imagePath: "/images/spring-collection.jpg", alt: "Exhibition card." },
         { eyebrow: "Operations", title: "Shop and Cafe", description: "", href: "/queries?view=gift-inventory#query-tabs", linkLabel: "Browse Inventory", imagePath: "/images/gift-shop.jpg", alt: "Gift shop display." },
       ],
       content: `
-        <section class="card narrow" id="query-tabs">
+        ${isEmp || isSuper ? `
+        <section class="card narrow collection-work-header">
+          <h1>Collection Tracking</h1>
+        </section>
+        ` : ""}
+        <section class="card narrow query-tab-shell" id="query-tabs">
           <div class="tab-bar" data-tab-group="queries">
             <button class="tab-button" type="button" data-tab-target="artwork-status">Artwork Status</button>
             ${canViewStaffing ? '<button class="tab-button" type="button" data-tab-target="staff-exhibitions">Staffing</button>' : ""}
@@ -351,7 +356,7 @@ function registerQueriesRoutes(app, { pool }) {
         </section>
 
         <section class="card narrow tab-panel" data-tab-group="queries" data-tab-panel="artwork-status">
-          <h2>Artwork Status and Tracking</h2>
+          <h2>Artwork Status</h2>
           <form method="get" action="/queries" class="form-grid">
             <label>Artwork Title
               <input type="text" name="artwork_status" value="${escapeHtml(artworkStatusSearch ?? "")}" placeholder="Title">

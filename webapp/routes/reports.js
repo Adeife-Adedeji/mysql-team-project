@@ -647,18 +647,18 @@ function registerReportsRoutes(app, { pool }) {
       title: "Museum Reports",
       user: req.session.user,
       content: `
-      <section class="card narrow">
-        <h1>Museum Reports</h1>
-        ${renderFlash(req)}
-      </section>
-      <section class="card narrow">
-        <div class="tab-bar" data-tab-group="reports">
-          <button class="tab-button" type="button" data-tab-target="consolidated-report-tab">Financial Summary</button>
-          <button class="tab-button" type="button" data-tab-target="ticket-sales-report-tab">Ticket Sales</button>
-          <button class="tab-button" type="button" data-tab-target="revenue-report-tab">Exhibition Revenue</button>
+      <section class="card narrow reports-toolbar">
+        <div class="reports-toolbar__title">
+          <h1>Museum Reports</h1>
+          ${renderFlash(req)}
+        </div>
+        <div class="tab-bar reports-tab-bar" data-tab-group="reports">
+          <button class="tab-button" type="button" data-tab-target="consolidated-report-tab">Financial</button>
+          <button class="tab-button" type="button" data-tab-target="ticket-sales-report-tab">Tickets</button>
+          <button class="tab-button" type="button" data-tab-target="revenue-report-tab">Exhibitions</button>
           <button class="tab-button" type="button" data-tab-target="gift-report-tab">Gift Shop</button>
           <button class="tab-button" type="button" data-tab-target="cafe-report-tab">Café</button>
-          <button class="tab-button" type="button" data-tab-target="membership-report-tab">Membership</button>
+          <button class="tab-button" type="button" data-tab-target="membership-report-tab">Members</button>
           <button class="tab-button" type="button" data-tab-target="event-attendance-report-tab">Events</button>
           <button class="tab-button" type="button" data-tab-target="tour-attendance-report-tab">Tours</button>
         </div>
@@ -666,7 +666,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="consolidated-report-tab">
         <div id="consolidated-report"></div>
         <h2>Consolidated Financial Summary</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Start Date
             <input type="date" name="consolidated_start" value="${escapeHtml(consolidatedStart ?? '')}">
           </label>
@@ -714,7 +714,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="ticket-sales-report-tab">
         <div id="ticket-sales-report"></div>
         <h2>Ticket Sales by Date Range</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Purchase Start
             <input type="date" name="sales_start" value="${escapeHtml(salesStart ?? '')}">
           </label>
@@ -762,7 +762,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="revenue-report-tab">
         <div id="revenue-report"></div>
         <h2>Revenue by Exhibition</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Visit Start
             <input type="date" name="revenue_start" value="${escapeHtml(revenueStart ?? '')}">
           </label>
@@ -787,7 +787,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="gift-report-tab">
         <div id="gift-report"></div>
         <h2>Gift Shop Sales Summary</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Sale Start
             <input type="date" name="gift_start" value="${escapeHtml(giftStart ?? '')}">
           </label>
@@ -817,7 +817,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="cafe-report-tab">
         <div id="cafe-report"></div>
         <h2>Cafe Sales Summary</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Sale Start
             <input type="date" name="cafe_start" value="${escapeHtml(cafeStart ?? '')}">
           </label>
@@ -847,7 +847,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="membership-report-tab">
         <div id="membership-report"></div>
         <h2>Membership Status Report</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Joined Start
             <input type="date" name="membership_start" value="${escapeHtml(membershipStart ?? '')}">
           </label>
@@ -891,7 +891,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="event-attendance-report-tab">
         <div id="event-attendance-report"></div>
         <h2>Event Attendance</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Start Date
             <input type="date" name="attendance_start" value="${escapeHtml(attendanceStart ?? '')}">
           </label>
@@ -918,7 +918,7 @@ function registerReportsRoutes(app, { pool }) {
       <section class="card narrow tab-panel report-panel" data-tab-group="reports" data-tab-panel="tour-attendance-report-tab">
         <div id="tour-attendance-report"></div>
         <h2>Tour Attendance</h2>
-        <form method="get" action="/reports" class="form-grid" data-date-range-form>
+        <form method="get" action="/reports" class="report-filter-row" data-date-range-form>
           <label>Start Date
             <input type="date" name="attendance_start" value="${escapeHtml(attendanceStart ?? '')}">
           </label>
