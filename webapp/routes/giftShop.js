@@ -566,7 +566,12 @@ function registerGiftShopRoutes(app, { pool }) {
   }));
   app.get("/gift-order", requireLogin, allowRoles(["giftshop", "supervisor", "employee"]), asyncHandler(async (req, res) => {
     const hasImageUrlColumn = await hasColumn(pool, "Gift_Shop_Item", "Image_URL");
-    const [items] = await pool.query(`SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item, Stock_Quantity, Category, ${hasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL FROM Gift_Shop_Item`);
+    const [items] = await pool.query(
+      `SELECT Gift_Shop_Item_ID, Name_of_Item, Price_of_Item, Stock_Quantity, Category, ${hasImageUrlColumn ? "Image_URL" : "NULL"} AS Image_URL
+       FROM Gift_Shop_Item
+       ORDER BY Stock_Quantity = 0, Category, Name_of_Item`
+    );
+    const categories = Array.from(new Set(items.map((item) => item.Category || "Museum Favorites").filter(Boolean))).sort();
     const cart = req.session.giftCart || [];
     const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
     const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
@@ -587,22 +592,33 @@ function registerGiftShopRoutes(app, { pool }) {
       showPortalBanner: false,
       content: `
       ${renderFlash(req)}
-      <div class="pos-layout">
+      <div class="pos-layout gift-shop-pos">
         <section class="pos-products">
           <div class="section-header">
             <div>
-              <h1>Gift Shop</h1>
+              <p class="eyebrow">Retail POS</p>
+              <h1>Gift Shop Floor</h1>
             </div>
             <span class="status-badge status-badge--neutral">${cartCount} item${cartCount === 1 ? "" : "s"}</span>
+          </div>
+          <div class="pos-filter-bar" data-pos-filters>
+            <label>Search
+              <input type="search" placeholder="Find merchandise" data-pos-search>
+            </label>
+            <div class="pos-category-tabs" aria-label="Shop categories">
+              <button class="tab-button is-active" type="button" data-pos-category="all">All</button>
+              ${categories.map((category) => `<button class="tab-button" type="button" data-pos-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}
+            </div>
           </div>
           <div class="product-grid">
             ${items.map((item) => {
               const asset = getGiftShopAsset(item.Name_of_Item, item.Category, item.Image_URL);
               const tone = item.Stock_Quantity === 0 ? "danger" : item.Stock_Quantity <= 5 ? "warning" : "success";
               return `
-                <article class="product-card">
+                <article class="product-card shop-product-card ${item.Stock_Quantity === 0 ? "pos-product-card--unavailable" : ""}" data-pos-product data-pos-name="${escapeHtml(item.Name_of_Item)}" data-pos-category="${escapeHtml(item.Category || "Museum Favorites")}">
                   <div class="product-card__media"><img src="${asset.imagePath}" alt="${asset.alt}"></div>
                   <div class="product-card__body">
+                    <p class="eyebrow">${escapeHtml(item.Category || "Museum Favorites")}</p>
                     <h2>${escapeHtml(item.Name_of_Item)}</h2>
                     <div class="product-card__meta">
                       <span class="status-badge status-badge--neutral">$${Number(item.Price_of_Item).toFixed(2)}</span>
@@ -614,7 +630,7 @@ function registerGiftShopRoutes(app, { pool }) {
                           <label>Quantity
                             <input type="number" name="quantity" value="1" min="1" max="${item.Stock_Quantity}">
                           </label>
-                          <button class="button" type="submit">Add</button>
+                          <button class="button" type="submit">Add to Cart</button>
                         </form>`
                       : '<span class="status-badge status-badge--danger">Unavailable</span>'}
                   </div>
@@ -625,10 +641,10 @@ function registerGiftShopRoutes(app, { pool }) {
         </section>
         <aside class="order-ledger" aria-label="Current order subtotal">
           <div>
-            <h2>Current Order</h2>
+            <h2>Order Summary</h2>
           </div>
           ${cart.length === 0
-            ? '<div class="empty-state"><p>No items in cart.</p></div>'
+            ? '<div class="empty-state"><p><strong>No merchandise added yet</strong></p><p>Search or choose a shop category, then add items to the order.</p></div>'
             : `<ul class="order-ledger__items">${cartRows}</ul>
                <div class="order-ledger__edit">
                 ${cart.map(item => `

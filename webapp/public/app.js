@@ -426,6 +426,10 @@
     if (!filterBar || !products.length) {
       return;
     }
+    if (filterBar.dataset.posFiltersReady === "true") {
+      return;
+    }
+    filterBar.dataset.posFiltersReady = "true";
 
     const search = filterBar.querySelector("[data-pos-search]");
     const categoryButtons = Array.from(filterBar.querySelectorAll("[data-pos-category]"));
@@ -439,7 +443,9 @@
         const category = normalizeText(product.dataset.posCategory);
         const matchesSearch = !query || name.includes(query);
         const matchesCategory = activeCategory === "all" || category === activeCategory;
-        product.hidden = !(matchesSearch && matchesCategory);
+        const shouldHide = !(matchesSearch && matchesCategory);
+        product.hidden = shouldHide;
+        product.classList.toggle("is-pos-hidden", shouldHide);
       });
     };
 

@@ -621,11 +621,12 @@ function registerCafeRoutes(app, { pool }) {
       showPortalBanner: false,
       content: `
       ${renderFlash(req)}
-      <div class="pos-layout">
+      <div class="pos-layout cafe-pos">
         <section class="pos-products">
           <div class="section-header">
             <div>
-              <h1>Café</h1>
+              <p class="eyebrow">Food Service POS</p>
+              <h1>Café Orders</h1>
             </div>
             <span class="status-badge status-badge--neutral">${cartCount} item${cartCount === 1 ? "" : "s"}</span>
           </div>
@@ -670,7 +671,7 @@ function registerCafeRoutes(app, { pool }) {
                           <label>Quantity
                             <input type="number" name="quantity" value="1" min="1" ${foodHasStockColumn ? `max="${food.Stock_Quantity}"` : ""}>
                           </label>
-                          <button class="button" type="submit">Add</button>
+                          <button class="button" type="submit">Add to Order</button>
                         </form>`
                       : '<span class="status-badge status-badge--danger">Unavailable</span>'}
                   </div>

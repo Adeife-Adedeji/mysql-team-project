@@ -136,6 +136,16 @@ function renderSupervisorDashboard({
       </div>
     </section>
   ` : "";
+  const urgentBanner = urgentCount ? `
+    <section class="supervisor-alert-banner" role="alert" aria-live="assertive">
+      <div>
+        <span>Action Required</span>
+        <strong>${urgentCount} unresolved manager exception${urgentCount === 1 ? "" : "s"}</strong>
+        <p>Review trigger violations and manager notices before continuing routine operations.</p>
+      </div>
+      <a class="button button-danger" href="#supervisor-review-required">Review Now</a>
+    </section>
+  ` : "";
 
   const collectionHtml = collectionRows.length
     ? collectionRows.map((row) => `
@@ -161,6 +171,7 @@ function renderSupervisorDashboard({
       ${renderSupervisorSidebar(user, "/dashboard", urgentCount)}
       <div class="supervisor-main">
         ${urgentModal}
+        ${urgentBanner}
         <section class="supervisor-masthead">
           <div>
             <p class="eyebrow">Supervisor Dashboard</p>
