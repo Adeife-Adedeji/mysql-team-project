@@ -296,7 +296,7 @@ function registerMembershipRoutes(app, { pool }) {
     res.redirect("/add-membership");
   }));
 
-  app.post("/delete-membership", requireLogin, allowRoles(["supervisor"]), asyncHandler(async (req, res) => {
+  app.post("/delete-membership", requireLogin, allowRoles(["admissions", "supervisor"]), asyncHandler(async (req, res) => {
     const idToDelete = req.body.membership_id;
 
     if (!idToDelete) {
