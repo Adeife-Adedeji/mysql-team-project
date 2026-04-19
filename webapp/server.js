@@ -1,36 +1,19 @@
-const express = require("express");
 const path = require("path");
-const session = require("express-session");
-const multer = require("multer");
 
 const { createPool, loadEnv } = require("./db");
 const { renderPage, setFlash } = require("./helpers");
+const { createNodeApp } = require("./nodeApp");
 const { registerRoutes } = require("./routes");
-
-const uploadStorage = multer.diskStorage({
-  destination: path.join(__dirname, "public", "uploads"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
-const upload = multer({
-  storage: uploadStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only image files are allowed."));
-    }
-  },
-});
 
 loadEnv(path.join(__dirname, ".env"));
 
-const app = express();
 const port = process.env.PORT || 3000;
 const pool = createPool(process.env);
+const { app, upload } = createNodeApp({
+  publicDir: path.join(__dirname, "public"),
+  uploadDir: path.join(__dirname, "public", "uploads"),
+  sessionSecret: process.env.SESSION_SECRET || "museum-session-secret",
+});
 
 async function ensureImageUrlColumns() {
   const columns = [
@@ -62,19 +45,9 @@ ensureImageUrlColumns().catch((error) => {
   console.error("Unable to ensure optional image URL columns:", error.message);
 });
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "museum-session-secret",
-    resave: false,
-    saveUninitialized: false,
-  }),
-);
-
 registerRoutes(app, { pool, upload });
 
-app.use((req, res) => {
+app.setNotFound((req, res) => {
   res.status(404).send(renderPage({
     title: "Not Found",
     user: req.session.user,
@@ -82,7 +55,7 @@ app.use((req, res) => {
   }));
 });
 
-app.use((err, req, res, next) => {
+app.setErrorHandler((err, req, res) => {
   console.error(err);
 
   if (err && err.sqlState === "45000") {
