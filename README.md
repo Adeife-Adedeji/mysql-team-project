@@ -15,13 +15,19 @@ The application is organized around different museum roles. Each role sees a das
 | `webapp/` | Web application source code. |
 | `webapp/.env.example` | Example database configuration file. |
 
-## Requirements
+## Hosted Website
+
+The primary version of the project is hosted on Microsoft Azure. The Azure website link and login credentials are provided separately in the submission email.
+
+The instructions below are for running the same project locally from the submitted source code.
+
+## Local Requirements
 
 - MySQL 8.0 or compatible MySQL server
 - Node.js 18 or newer
 - npm
 
-## Database Setup
+## Local Database Setup
 
 The setup scripts drop the existing `museumdb` database, rebuild the schema, load the sample data, create triggers and reports, and insert the test login accounts.
 
@@ -46,7 +52,7 @@ museumdb
 
 If the Windows script cannot find MySQL, update the `MYSQL` path inside `setup_full_database(RUN THIS ).bat` to match the local MySQL installation.
 
-## Web Application Setup
+## Local Web Application Setup
 
 From the project root:
 
@@ -92,20 +98,20 @@ Open the application at:
 http://localhost:3000
 ```
 
-## Test Login Accounts
+## User Accounts
 
-The following accounts are inserted by `sqlFiles/004_seed_auth_users.sql`.
+The database includes seeded accounts for each application role. Usernames and passwords are provided separately in the submission email.
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Member/User | `member@example.com` | `member123` |
-| Supervisor | `supervisor@example.com` | `supervisor123` |
-| Curator | `curator@example.com` | `curator123` |
-| Employee | `employee@example.com` | `employee123` |
-| Admissions Clerk | `clerk@example.com` | `clerk123` |
-| Gift Shop Staff | `giftshop@example.com` | `giftshop123` |
-| Cafe Staff | `cafe@example.com` | `cafe123` |
-| Marketing/Supervisor | `marketing@example.com` | `marketing123` |
+Seeded roles include:
+
+- Member/User
+- Supervisor
+- Curator
+- Employee
+- Admissions Clerk
+- Gift Shop Staff
+- Cafe Staff
+- Marketing/Supervisor
 
 ## Data Managed By The Application
 
