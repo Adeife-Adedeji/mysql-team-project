@@ -21,11 +21,12 @@ The primary version of the project is hosted on Microsoft Azure. The Azure websi
 
 The instructions below are for running the same project locally from the submitted source code.
 
-## Local Requirements
+## Local Requirements and Tech Stack
 
 - MySQL 8.0 or compatible MySQL server
 - Node.js 18 or newer
 - npm
+- Built with React
 
 ## Local Database Setup
 
@@ -112,6 +113,14 @@ Seeded roles include:
 - Gift Shop Staff
 - Cafe Staff
 - Marketing/Supervisor
+
+## Membership Lifecycle & Logic
+
+The application implements a robust membership system with automated lifecycle management:
+
+* **Automatic Expiration:** A MySQL Event (`evt_expire_memberships`) runs every 24 hours to transition members from 'Active' to 'Expired' if their `Date_Exited` has passed.
+* **Auto-Calculated Terms:** When a new member is added, a trigger automatically sets their `Date_Exited` to exactly one year from their `Date_Joined` and initializes their status as 'Active'.
+* **Transaction Blocking:** Database triggers proactively block any ticket purchases for accounts with 'Expired' or 'Canceled' status. If a blocked transaction is attempted, the system raises a MySQL error (SQLSTATE '45000'), which the web application captures and logs for supervisor review.
 
 ## Data Managed By The Application
 
